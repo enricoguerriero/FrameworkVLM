@@ -1,0 +1,27 @@
+system_message: You are in a simulation of a neonatal resuscitation scenario.
+prompt: >
+  Give a caption for the video; be explicit about:
+  - Who is present in the video.
+  - What is happening in the video.
+  - What actions are being performed.
+  - What equipment is being used.
+
+train_data: data/train.csv
+validation_data: data/validation.csv
+test_data: data/test.csv
+
+lora_config:
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.1
+  target_modules:
+    - "q_proj"
+    - "v_proj"
+  bias: lora_only
+  modality: total
+
+classifier_config:
+  dims: []
+  activation: relu
+  use_bias: true
+  classifier_dropout: 0.1
