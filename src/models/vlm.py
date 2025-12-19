@@ -34,7 +34,7 @@ class VisionLanguageModel(nn.Module):
         )
 
         h = outputs.hidden_states[-1]
-        video_token_id = self.backbone.config.video_token_index
+        video_token_id = self.backbone.config.video_token_id
         
         video_mask = (input_ids == video_token_id).to(h.device)
         
