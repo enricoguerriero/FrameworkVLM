@@ -17,11 +17,13 @@ def load_model(model_name: str, **kwargs) -> VisionLanguageModel:
     
 def collate_fn(batch: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
     pixel_values_videos = torch.stack([item["pixel_values_videos"] for item in batch])
+    video_grid_thw = torch.stack([item["video_grid_thw"] for item in batch])
     input_ids = torch.stack([item["input_ids"] for item in batch])
     attention_mask = torch.stack([item["attention_mask"] for item in batch])
     labels = torch.stack([item["labels"] for item in batch])
     return {
         "pixel_values_videos": pixel_values_videos,
+        "video_grid_thw": video_grid_thw,
         "input_ids": input_ids,
         "attention_mask": attention_mask,
         "labels": labels,

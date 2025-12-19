@@ -77,6 +77,7 @@ class ClipDataset(Dataset):
         )
         item = {
             "pixel_values_videos": inputs.pixel_values_videos.squeeze(0),
+            "video_grid_thw": inputs.video_grid_thw.squeeze(0),
             "input_ids": inputs.input_ids.squeeze(0),
             "attention_mask": inputs.attention_mask.squeeze(0),
             "labels": self.labels[idx],
