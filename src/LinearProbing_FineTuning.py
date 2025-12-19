@@ -41,7 +41,7 @@ def main():
     device = torch.device(config.get("device", "cuda" if torch.cuda.is_available() else "cpu"))
     model = model.to(device)
 
-    wandb.init(project="vlm-training", name=f"Training_{model.model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}", config=config)
+    wandb.init(project="vlm-training", name=f"Training_{model.model_name}_LPFT_{datetime.now().strftime('%Y%m%d_%H%M%S')}", config=config)
 
     prompt = config.get("prompt", "What's happening in the video?")
     system_message = config.get("system_message", "You are a helpful assistant.")
@@ -87,7 +87,7 @@ def main():
     logger.debug("Starting data loading ...")
     train_loader = DataLoader(
         train_dataset,
-        batch_size = config.get("batch_size", 4),
+        batch_size = config.get("classifier_batch_size", 4),
         shuffle = True,
         num_workers = config.get("num_workers", 0),
         pin_memory = config.get("num_workers", 0) > 0,
@@ -97,7 +97,7 @@ def main():
     if not only_train:
         val_loader = DataLoader(
             val_dataset,
-            batch_size = config.get("batch_size", 4),
+            batch_size = config.get("classifier_batch_size", 4),
             shuffle = False,
             num_workers = config.get("num_workers", 0),
             pin_memory = config.get("num_workers", 0) > 0,
@@ -124,19 +124,8 @@ def main():
     )
     logger.debug(f"Classifier architecture: {model.classifier}")
 
-    if config.get("train_backbone", False):
-        model.inject_lora_layers(
-            lora_config = config.get("lora_config", {})
-        )
-        logger.debug("LoRA layers injected.")
-        logger.debug(f"Full model architecture after LoRA injection: {model}")
-
     for param in model.parameters():
         param.requires_grad = False
-    if config.get("train_backbone", False):
-        for name, param in model.backbone.named_parameters():
-            if "lora_" in name:
-                param.requires_grad = True
     for param in model.classifier.parameters():
         param.requires_grad = True
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -149,7 +138,7 @@ def main():
 
     optimizer = torch.optim.AdamW(
         filter(lambda p: p.requires_grad, model.parameters()),
-        lr = config.get("learning_rate", 1e-5),
+        lr = config.get("classifier_learning_rate", 1e-5),
         weight_decay = config.get("weight_decay", 0.001)
     )
     logger.debug("Optimizer initialized.")
@@ -162,39 +151,186 @@ def main():
     C = model.num_classes
 
     val_step = config.get("validation_step", None) if not only_train else None
-    num_epochs = config.get("num_epochs", 1)
+    num_epochs = config.get("classifier_num_epochs", 1)
 
     amp_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
     logger.debug(f"Using AMP dtype: {amp_dtype}")
     scaler = GradScaler(enabled=(amp_dtype == torch.float16))
+    best_val_f1 = 0.0
 
     for epoch in range(num_epochs):
 
-        logger.info(f"Starting epoch {epoch+1}/{num_epochs} ...")
+        logger.info(f"Starting epoch {epoch + 1}/{num_epochs} of training classifier head ...")
         model.train()
 
-        train_loss =0.0
+        train_loss = 0.0
         total_samples = 0
-        logits_tensor = torch.empty((N, C), dtype=torch.float32)
-        labels_tensor = torch.empty((N, C), dtype=torch.float32)
+        logits_tensor = torch.zeros((N, C))
+        labels_tensor = torch.zeros((N, C))
 
-        for batch in tqdm(train_loader, desc=f"Epoch {epoch+1} Training", total=N/config.get("batch_size", 4)):
-
+        for batch in tqdm(train_loader, desc=f"Epoch {epoch + 1}/{num_epochs} Training", total=len(train_loader)):
+            
             labels = batch.pop("labels").to(device)
             optimizer.zero_grad()
 
-            with autocast(device_type="cuda", dtype=amp_dtype):
+            with autocast(enabled=(amp_dtype is not None), dtype=amp_dtype):
                 logits = model(**batch)
                 loss = criterion(logits, labels)
-            
-            logits_tensor[total_samples:total_samples + logits.size(0), :] = logits.detach().cpu()
-            labels_tensor[total_samples:total_samples + labels.size(0), :] = labels.detach().cpu()
 
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
             clip_grad_norm_(model.parameters(), max_norm=1.0)
             scaler.step(optimizer)
             scaler.update()
+
+            logits_tensor[total_samples:total_samples + logits.size(0), :] = logits.detach().cpu()
+            labels_tensor[total_samples:total_samples + labels.size(0), :] = labels.detach().cpu()
+
+            train_loss += loss.item() * labels.size(0)
+            total_samples += labels.size(0)
+        
+        wandb.log({
+            "Train Loss": train_loss / total_samples,
+            "Epoch": epoch + 1
+        })
+        metrics = compute_metrics(logits_tensor, labels_tensor)
+        metrics["epoch"] = epoch + 1
+        wandb.log(metrics)
+
+        if not only_train:
+            logger.info(f"Starting epoch {epoch + 1}/{num_epochs} of validation ...")
+            model.eval()
+
+            val_loss = 0.0
+            val_total_samples = 0
+            val_logits_tensor = torch.zeros((N_val, C))
+            val_labels_tensor = torch.zeros((N_val, C))
+
+            with torch.no_grad():
+                for batch in tqdm(val_loader, desc=f"Epoch {epoch + 1}/{num_epochs} Validation", total=len(val_loader)):
+                    
+                    labels = batch.pop("labels").to(device)
+
+                    with autocast(enabled=(amp_dtype is not None), dtype=amp_dtype):
+                         logits = model(**batch)
+                         loss = criterion(logits, labels)
+
+                    val_logits_tensor[val_total_samples:val_total_samples + logits.size(0), :] = logits.detach().cpu()
+                    val_labels_tensor[val_total_samples:val_total_samples + labels.size(0), :] = labels.detach().cpu()
+
+                    val_loss += loss.item() * labels.size(0)
+                    val_total_samples += labels.size(0)
+
+            wandb.log({
+                "Validation Loss": val_loss / val_total_samples,
+                "Epoch": epoch + 1
+            })
+
+            metrics = compute_metrics(val_logits_tensor, val_labels_tensor)
+            metrics["epoch"] = epoch + 1
+            wandb.log(metrics)
+
+            model.train()
+            save_path = f"{config.get("checkpoint_path", "checkpoints/")}_{model.model_name}_epoch{epoch+1}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pt"
+            torch.save({
+                "classifier": model.classifier.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "epoch": epoch + 1
+            }, save_path)
+            logger.info(f"Saved checkpoint to {save_path}")
+            logger.debug(f"Validation Metrics: {metrics}")
+
+            if metrics.get("macro/f1", 0.0) > best_val_f1:
+                best_val_f1 = metrics.get("macro/f1", 0.0)
+                best_model_path = save_path
+                logger.info(f"New best model with Macro F1: {best_val_f1:.4f}. Saved to {best_model_path}")
+
+    logger.info("Training classifier completed.")
+
+    # loading the best classifier model
+    if not only_train:
+        logger.info(f"Loading the best model from {best_model_path} with Macro F1: {best_val_f1:.4f}")
+        checkpoint = torch.load(best_model_path, map_location=device)
+        model.classifier.load_state_dict(checkpoint["classifier"])
+        logger.info("Best model loaded.")
+    
+    logger.info("Injecting LoRA layers into the backbone for fine-tuning ...")
+    model.inject_lora_layers(
+        lora_config = config.get("lora_config", {})
+    )
+    logger.debug("LoRA layers injected.")
+    logger.debug(f"Full model architecture after LoRA injection: {model}")
+
+    for param, name in model.backbone.named_parameters():
+        if "lora_" in name:
+            param.requires_grad = True
+    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    logger.info(f"Total trainable parameters after LoRA injection: {total_params}")
+    model.to(device)
+
+    num_epochs = config.get("finetuning_num_epochs", 1)
+    optimizer = torch.optim.AdamW(
+        filter(lambda p: p.requires_grad, model.parameters()),
+        lr = config.get("finetuning_learning_rate", 1e-5),
+        weight_decay = config.get("weight_decay", 0.001)
+    )
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size = config.get("finetuning_batch_size", 4),
+        shuffle = True,
+        num_workers = config.get("num_workers", 0),
+        pin_memory = config.get("num_workers", 0) > 0,
+        collate_fn=collate_fn
+    )
+    logger.debug("DataLoader for fine-tuning created.")
+    if not only_train:
+        val_loader = DataLoader(
+            val_dataset,
+            batch_size = config.get("finetuning_batch_size", 4),
+            shuffle = False,
+            num_workers = config.get("num_workers", 0),
+            pin_memory = config.get("num_workers", 0) > 0,
+            collate_fn=collate_fn
+        )
+        logger.debug("Validation DataLoader for fine-tuning created.")
+
+    N = len(train_dataset)
+    if not only_train:
+        N_val = len(val_dataset)
+    C = model.num_classes
+
+    val_step = config.get("validation_step", None) if not only_train else None
+
+    scaler = GradScaler(enabled=(amp_dtype == torch.float16))
+
+    for epoch in range(num_epochs):
+
+        logger.info(f"Starting epoch {epoch + 1}/{num_epochs} of fine-tuning ...")
+        model.train()
+
+        train_loss = 0.0
+        total_samples = 0
+        logits_tensor = torch.zeros((N, C))
+        labels_tensor = torch.zeros((N, C))
+
+        for batch in tqdm(train_loader, desc=f"Epoch {epoch + 1}/{num_epochs} Fine-Tuning", total=len(train_loader)):
+            
+            labels = batch.pop("labels").to(device)
+            optimizer.zero_grad()
+
+            with autocast(device_type="cuda", dtype=amp_dtype):
+                logits = model(**batch)
+                loss = criterion(logits, labels)
+
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
+            clip_grad_norm_(model.parameters(), max_norm=1.0)
+            scaler.step(optimizer)
+            scaler.update()
+
+            logits_tensor[total_samples:total_samples + logits.size(0), :] = logits.detach().cpu()
+            labels_tensor[total_samples:total_samples + labels.size(0), :] = labels.detach().cpu()
 
             train_loss += loss.item() * labels.size(0)
             total_samples += labels.size(0)
@@ -257,83 +393,77 @@ def main():
                     "config": config
                 }, save_path)
 
-        train_loss /= total_samples
         wandb.log({
-            "Train Loss Epoch": train_loss,
+            "Fine-Tune Train Loss": train_loss / total_samples,
             "Epoch": epoch + 1
         })
+        metrics = compute_metrics(logits_tensor, labels_tensor)
+        metrics["epoch"] = epoch + 1
+        wandb.log(metrics)
 
         if not only_train:
+            logger.info(f"Starting epoch {epoch + 1}/{num_epochs} of fine-tuning validation ...")
             model.eval()
 
             val_loss = 0.0
             val_total_samples = 0
-            val_logits_tensor = torch.empty((N_val, C), dtype=torch.float32)
-            val_labels_tensor = torch.empty((N_val, C), dtype=torch.float32)
+            val_logits_tensor = torch.zeros((N_val, C))
+            val_labels_tensor = torch.zeros((N_val, C))
 
             with torch.no_grad(), autocast(device_type="cuda", dtype=amp_dtype):
-                for batch in tqdm(val_loader, desc=f"Epoch {epoch+1} Full Validation", total=N_val/config.get("batch_size", 4)):
-
+                for batch in tqdm(val_loader, desc=f"Epoch {epoch + 1}/{num_epochs} Fine-Tuning Validation", total=len(val_loader)):
+                    
                     labels = batch.pop("labels").to(device)
-                    logits = model(**batch)
-                    loss = criterion(logits, labels)
+
+                    with autocast(enabled=(amp_dtype is not None), dtype=amp_dtype):
+                         logits = model(**batch)
+                         loss = criterion(logits, labels)
 
                     val_logits_tensor[val_total_samples:val_total_samples + logits.size(0), :] = logits.detach().cpu()
                     val_labels_tensor[val_total_samples:val_total_samples + labels.size(0), :] = labels.detach().cpu()
 
                     val_loss += loss.item() * labels.size(0)
                     val_total_samples += labels.size(0)
-
+            
             val_loss /= val_total_samples
             wandb.log({
-                "Validation Loss Epoch": val_loss,
+                "Validation Loss": val_loss,
                 "Epoch": epoch + 1
             })
-
             metrics = compute_metrics(val_logits_tensor, val_labels_tensor)
             metrics["epoch"] = epoch + 1
             wandb.log(metrics)
-        else:
-            metrics = compute_metrics(logits_tensor, labels_tensor)
-            metrics["epoch"] = epoch + 1
-            wandb.log(metrics)
-        logger.info(f"Epoch {epoch+1} completed. Train Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}" if not only_train else f"Epoch {epoch+1} completed. Train Loss: {train_loss:.4f}")
-        save_path = f"{config.get('checkpoint_path', 'checkpoints/')}_{model.model_name}_epoch{epoch+1}_{datetime.now().strftime('%Y%m%d_%H%M%S')}" + ".pt"
+            model.train()
+        
+        save_path = f"{config.get("checkpoint_path", "checkpoints/")}_{model.model_name}_epoch{epoch+1}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pt"
         torch.save({
             "model_state_dict": model.state_dict(),
             "backbone": model.backbone.state_dict(),
             "classifier": model.classifier.state_dict(),
-            "attention_pooling": model.attn_pool.state_dict() if hasattr(model, "attn_pool") else None,
             "processor": model.processor,
             "optimizer_state_dict": optimizer.state_dict(),
-            "epoch": epoch + 1,
+            "epoch": num_epochs,
             "train_loss": train_loss,
             "val_loss": val_loss if not only_train else None,
-            "metrics": metrics,
+            "metrics": metrics if not only_train else None,
             "lora_config": config.get("lora_config", {}),
             "classifier_config": config.get("classifier_config", {}),
             "config": config
         }, save_path)
 
-        logger.info(f"Model checkpoint saved at {save_path}")
-    
-    logger.info("Training completed.")
-    save_path = f"{config.get('save_path', 'models/')}_{model.model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pt"
+        logger.info(f"Saved checkpoint to {save_path}")
+        logger.info(f"Epoch {epoch+1} completed. Fine-Tune Train Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}" if not only_train else f"Epoch {epoch+1} completed. Fine-Tune Train Loss: {train_loss:.4f}")
+
+    logger.info("Fine-tuning completed.")
+    save_path = f"{config.get('save_path', 'models/')}_{model.model_name}_LPFT_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pt"
     torch.save({
         "model_state_dict": model.state_dict(),
         "backbone": model.backbone.state_dict(),
         "classifier": model.classifier.state_dict(),
         "processor": model.processor,
-        "optimizer_state_dict": optimizer.state_dict(),
-        "epoch": num_epochs,
-        "train_loss": train_loss,
-        "val_loss": val_loss if not only_train else None,
-        "metrics": metrics,
-        "lora_config": config.get("lora_config", {}),
-        "classifier_config": config.get("classifier_config", {}),
         "config": config
     }, save_path)
-    logger.info(f"Final model saved at {save_path}")
+    logger.info(f"Saved final model to {save_path}")
 
 if __name__ == "__main__":
     main()
