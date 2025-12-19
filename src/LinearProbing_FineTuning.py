@@ -173,7 +173,7 @@ def main():
             labels = batch.pop("labels").to(device)
             optimizer.zero_grad()
 
-            with autocast(enabled=(amp_dtype is not None), dtype=amp_dtype):
+            with autocast(device_type="cuda", dtype=amp_dtype):
                 logits = model(**batch)
                 loss = criterion(logits, labels)
 
@@ -211,7 +211,7 @@ def main():
                     
                     labels = batch.pop("labels").to(device)
 
-                    with autocast(enabled=(amp_dtype is not None), dtype=amp_dtype):
+                    with autocast(device_type="cuda", dtype=amp_dtype):
                          logits = model(**batch)
                          loss = criterion(logits, labels)
 
@@ -261,7 +261,7 @@ def main():
     logger.debug("LoRA layers injected.")
     logger.debug(f"Full model architecture after LoRA injection: {model}")
 
-    for param, name in model.backbone.named_parameters():
+    for name, param in model.backbone.named_parameters():
         if "lora_" in name:
             param.requires_grad = True
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -350,7 +350,7 @@ def main():
                 val_logits_tensor = torch.empty((N_val, C), dtype=torch.float32)
                 val_labels_tensor = torch.empty((N_val, C), dtype=torch.float32)
 
-                with torch.no_grad(), autocast(device_type="cuda"):
+                with torch.no_grad(), autocast(device_type="cuda", dtype=amp_dtype):
                     for batch in tqdm(val_loader, desc=f"Epoch {epoch+1} Validation", total=N_val/config.get("batch_size", 4)):
 
                         labels = batch.pop("labels").to(device)
@@ -410,12 +410,12 @@ def main():
             val_logits_tensor = torch.zeros((N_val, C))
             val_labels_tensor = torch.zeros((N_val, C))
 
-            with torch.no_grad(), autocast(device_type="cuda", dtype=amp_dtype):
+            with torch.no_grad():
                 for batch in tqdm(val_loader, desc=f"Epoch {epoch + 1}/{num_epochs} Fine-Tuning Validation", total=len(val_loader)):
                     
                     labels = batch.pop("labels").to(device)
 
-                    with autocast(enabled=(amp_dtype is not None), dtype=amp_dtype):
+                    with autocast(device_type="cuda", dtype=amp_dtype):
                          logits = model(**batch)
                          loss = criterion(logits, labels)
 

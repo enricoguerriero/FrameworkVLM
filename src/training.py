@@ -91,7 +91,7 @@ def main():
         shuffle = True,
         num_workers = config.get("num_workers", 0),
         pin_memory = config.get("num_workers", 0) > 0,
-        collate_fn=collate_fn
+        collate_fn = collate_fn
     )
     logger.debug("Training data loaded.")
     if not only_train:
@@ -101,7 +101,7 @@ def main():
             shuffle = False,
             num_workers = config.get("num_workers", 0),
             pin_memory = config.get("num_workers", 0) > 0,
-            collate_fn=collate_fn
+            collate_fn = collate_fn
         )
         logger.debug("Validation data loaded.")
     
