@@ -25,3 +25,14 @@ classifier_config:
   activation: relu
   use_bias: true
   classifier_dropout: 0.1
+
+num_frames: Null
+batch_size: 1
+num_workers: 4
+num_epochs: 2
+learning_rate: 5e-5
+weight_decay: 1e-4
+train_backbone: true
+validation_step: 500
+checkpoint_path: checkpoints/
+save_path: models/

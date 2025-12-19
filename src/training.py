@@ -69,7 +69,7 @@ def main():
         num_frames = config.get("num_frames", None)
     )
     val_dataset = ClipDataset(
-        video_csv = config.get("val_data", "val_data.csv"),
+        video_csv = config.get("validation_data", "val_data.csv"),
         prompt_template = prompt_template,
         processor = model.processor,
         num_frames = config.get("num_frames", None)
