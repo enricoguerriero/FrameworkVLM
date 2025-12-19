@@ -84,10 +84,10 @@ class ClipDataset(Dataset):
         return item
     
     def compute_pos_weights(self):
-        counts, n = self._get_label_counts(self.df)
+        counts, n = self._get_label_counts(self.data)
         return torch.tensor((n-counts) / (counts + 1e-6), dtype=torch.float)
 
     def compute_bias(self):
-        counts, n = self._get_label_counts(self.df)
+        counts, n = self._get_label_counts(self.data)
         ratios = counts / (n-counts + 1e-6)
         return torch.log(ratios)
