@@ -134,8 +134,9 @@ def main():
     for param in model.parameters():
         param.requires_grad = False
     if config.get("train_backbone", False):
-        for param in model.backbone.parameters():
-            param.requires_grad = True
+        for name, param in model.backbone.named_parameters():
+            if "lora_" in name:
+                param.requires_grad = True
     for param in model.classifier.parameters():
         param.requires_grad = True
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
