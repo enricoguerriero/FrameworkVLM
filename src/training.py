@@ -163,7 +163,9 @@ def main():
     val_step = config.get("validation_step", None) if not only_train else None
     num_epochs = config.get("num_epochs", 1)
 
-    scaler = GradScaler()
+    amp_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+    logger.debug(f"Using AMP dtype: {amp_dtype}")
+    scaler = GradScaler(enabled=(amp_dtype == torch.float16))
 
     for epoch in range(num_epochs):
 
@@ -181,7 +183,7 @@ def main():
             labels = batch.pop("labels").to(device)
             optimizer.zero_grad()
 
-            with autocast(device_type="cuda"):
+            with autocast(device_type="cuda", dtype=amp_dtype):
                 logits = model(**batch)
                 loss = criterion(logits, labels)
             
@@ -271,11 +273,11 @@ def main():
             val_logits_tensor = torch.empty((N_val, C), dtype=torch.float32)
             val_labels_tensor = torch.empty((N_val, C), dtype=torch.float32)
 
-            with torch.no_grad(), autocast(device_type="cuda"):
+            with torch.no_grad(), autocast(device_type="cuda", dtype=amp_dtype):
                 for batch in tqdm(val_loader, desc=f"Epoch {epoch+1} Full Validation", total=N_val/config.get("batch_size", 4)):
 
                     labels = batch.pop("labels").to(device)
-                    logits = model(**{k: v.to(device) for k, v in batch.items()})
+                    logits = model(**batch)
                     loss = criterion(logits, labels)
 
                     val_logits_tensor[start_idx:start_idx + logits.size(0), :] = logits.detach().cpu()
