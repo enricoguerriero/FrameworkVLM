@@ -19,3 +19,26 @@ class Qwen3VL(VisionLanguageModel):
         except:
             self.input_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.video_tokens_allowed = True
+
+    def forward(self, pixel_values_videos: torch.Tensor, video_grid_thw: torch.Tensor, input_ids: torch.Tensor, attention_mask: torch.Tensor):
+
+        outputs = self.backbone(
+            pixel_values_videos=pixel_values_videos.to(self.input_device),
+            video_grid_thw=video_grid_thw.to(self.input_device),
+            input_ids=input_ids.to(self.input_device),
+            attention_mask=attention_mask.to(self.input_device),
+            return_dict=True,
+            output_hidden_states=True,
+        )
+
+        h = outputs.hidden_states[-1]
+        video_token_id = self.backbone.config.video_token_id
+        
+        video_mask = (input_ids == video_token_id).to(h.device)
+        
+        pooled = (h * video_mask.unsqueeze(-1)).sum(1) / \
+               video_mask.sum(1, keepdim=True).clamp(min=1) # Eventually attention pooling here 
+               
+        logits = self.classifier(pooled.float())
+
+        return logits

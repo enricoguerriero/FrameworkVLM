@@ -22,11 +22,10 @@ class VisionLanguageModel(nn.Module):
         # self.attn_pool = None
         self.input_device = None
 
-    def forward(self, pixel_values_videos: torch.Tensor, video_grid_thw: torch.Tensor, input_ids: torch.Tensor, attention_mask: torch.Tensor):
+    def forward(self, pixel_values_videos: torch.Tensor, input_ids: torch.Tensor, attention_mask: torch.Tensor):
 
         outputs = self.backbone(
             pixel_values_videos=pixel_values_videos.to(self.input_device),
-            video_grid_thw=video_grid_thw.to(self.input_device),
             input_ids=input_ids.to(self.input_device),
             attention_mask=attention_mask.to(self.input_device),
             return_dict=True,
