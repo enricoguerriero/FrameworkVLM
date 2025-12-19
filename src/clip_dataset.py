@@ -57,6 +57,7 @@ class ClipDataset(Dataset):
         container = av.open(filepath)
         stream = container.streams.video[0]
         fps = float(stream.average_rate)
+        total_frames = stream.frames
         frames = []
         for i, frm in enumerate(container.decode(video=0)):
             if i > indices[-1]:
@@ -66,17 +67,17 @@ class ClipDataset(Dataset):
         container.close()
         if len(frames) < self.num_frames:
             frames += [frames[-1]] * (self.num_frames - len(frames))
-        return np.stack(frames), fps
+        return np.stack(frames), fps, total_frames
     
     def __getitem__(self, idx) -> dict[str, torch.Tensor]:
         video_path = self.videos[idx]
         frame_indices = self.indices[idx]
-        frames, fps = self._read_frames_at_indices(video_path, frame_indices)
+        frames, fps, total_frames = self._read_frames_at_indices(video_path, frame_indices)
         inputs = self.processor(
             videos=frames,
             text=self.prompt,
             return_tensors="pt",
-            video_metadata={"fps": fps},
+            video_metadata={"fps": fps, "total_num_frames": total_frames},
         )
         item = {
             "pixel_values_videos": inputs.pixel_values_videos.squeeze(0),
