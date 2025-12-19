@@ -83,3 +83,25 @@ def main():
     logger.info(f"Loaded classifier from {saved_model_path}")
     model.load_backbone(saved_model)
     logger.info(f"Loaded backbone from {saved_model_path}")
+
+    model.eval()
+    logits_tensor = torch.empty((len(test_dataset), model.num_classes), dtype=torch.float32)
+    labels_tensor = torch.empty((len(test_dataset), model.num_classes), dtype=torch.float32)
+
+    with torch.no_grad():
+        for i, batch in enumerate(tqdm(test_loader, desc="Testing", total=len(test_loader))):
+            labels = batch.pop("labels").to(device)
+
+            with autocast(device_type="cuda", dtype=torch.float16 if not torch.cuda.is_bf16_supported() else torch.bfloat16):
+                logits = model(**batch)
+
+            logits_tensor[i] = logits.detach().cpu()
+            labels_tensor[i] = labels.detach().cpu()
+    
+    metrics = compute_metrics(logits_tensor, labels_tensor)
+    logger.info(f"Test Metrics: {metrics}")
+    wandb.log({"test_metrics": metrics})
+    logger.info("Testing completed.")
+
+if __name__ == "__main__":
+    main()
