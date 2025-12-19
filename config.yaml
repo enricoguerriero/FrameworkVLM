@@ -26,11 +26,11 @@ classifier_config:
   use_bias: true
   classifier_dropout: 0.1
 
-num_frames: Null
+num_frames: null
 batch_size: 1
 num_workers: 4
 num_epochs: 2
-learning_rate: 0.00005
+learning_rate: 0.00001
 weight_decay: 0.0001
 train_backbone: true
 validation_step: 2000
@@ -44,3 +44,4 @@ classifier_batch_size: 16
 fine_tuning_learning_rate: 0.00001
 fine_tuning_epochs: 2
 fine_tuning_batch_size: 1
+
