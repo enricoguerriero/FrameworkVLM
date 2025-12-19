@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:4
+#SBATCH --gres=gpu:2
 #SBATCH --time=48:00:00
 #SBATCH --job-name=lpft_qwen
 #SBATCH --output=outputs/lpft_qwen_%j.out
