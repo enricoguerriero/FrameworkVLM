@@ -78,7 +78,7 @@ def main():
         collate_fn = collate_fn
     )
     logger.debug("Test data loaded.")
-    saved_model = torch.load(saved_model_path, map_location=device)
+    saved_model = torch.load(saved_model_path, map_location=device, weights_only=False)
     model.load_classifier(saved_model)
     logger.info(f"Loaded classifier from {saved_model_path}")
     model.load_backbone(saved_model)
