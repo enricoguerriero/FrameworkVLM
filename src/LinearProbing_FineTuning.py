@@ -151,7 +151,7 @@ def main():
     C = model.num_classes
 
     val_step = config.get("validation_step", None) if not only_train else None
-    num_epochs = config.get("classifier_num_epochs", 1)
+    num_epochs = config.get("classifier_epochs", 1)
 
     amp_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
     logger.debug(f"Using AMP dtype: {amp_dtype}")
@@ -268,7 +268,7 @@ def main():
     logger.info(f"Total trainable parameters after LoRA injection: {total_params}")
     model.to(device)
 
-    num_epochs = config.get("finetuning_num_epochs", 1)
+    num_epochs = config.get("finetuning_epochs", 1)
     optimizer = torch.optim.AdamW(
         filter(lambda p: p.requires_grad, model.parameters()),
         lr = config.get("finetuning_learning_rate", 1e-5),
