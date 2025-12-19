@@ -5,8 +5,11 @@ import torch
 class Qwen3VL(VisionLanguageModel):
 
     def __init__(self, device: str = "cuda", num_classes: int = 3, backbone_id: str = "Qwen/Qwen3-VL-8B-Instruct"):
-        super().__init__(device, num_classes, backbone_id)
-
+        super().__init__(
+                    num_classes=num_classes, 
+                    backbone_id=backbone_id, 
+                    device=device
+                    )
         self.model_name = "Qwen3VL"
         self.backbone = Qwen3VLForConditionalGeneration.from_pretrained(backbone_id)
         self.processor = AutoProcessor.from_pretrained(backbone_id)

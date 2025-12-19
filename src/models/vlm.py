@@ -9,7 +9,7 @@ class VisionLanguageModel(nn.Module):
     Generic model class. For future implementations, implement subclasses of this class.
     """
 
-    def __init__(self, num_classes: int = 4, backbone_id: str = None, device = None):
+    def __init__(self, num_classes: int = 3, backbone_id: str = None, device = None):
         super().__init__()
         self.device = device
         self.model_name = "VisionLanguageModel"
