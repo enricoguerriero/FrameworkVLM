@@ -174,7 +174,6 @@ def main():
         model.train()
 
         train_loss =0.0
-        start_idx = 0
         total_samples = 0
         logits_tensor = torch.empty((N, C), dtype=torch.float32)
         labels_tensor = torch.empty((N, C), dtype=torch.float32)
@@ -188,8 +187,8 @@ def main():
                 logits = model(**batch)
                 loss = criterion(logits, labels)
             
-            logits_tensor[start_idx:start_idx + logits.size(0), :] = logits.detach().cpu()
-            labels_tensor[start_idx:start_idx + labels.size(0), :] = labels.detach().cpu()
+            logits_tensor[total_samples:total_samples + logits.size(0), :] = logits.detach().cpu()
+            labels_tensor[total_samples:total_samples + labels.size(0), :] = labels.detach().cpu()
 
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
@@ -200,16 +199,14 @@ def main():
             train_loss += loss.item() * labels.size(0)
             total_samples += labels.size(0)
 
-            start_idx += 1
-
-            if start_idx % 50 == 0:
+            if total_samples % 50 == 0:
                 wandb.log({
                     "Train Loss": train_loss / total_samples,
                     "Epoch": epoch + 1,
-                    "Batch": start_idx
+                    "Batch": total_samples
                 })
 
-            if val_step is not None and start_idx % val_step == 0:
+            if val_step is not None and total_samples % val_step == 0:
                 model.eval()
 
                 val_loss = 0.0
@@ -224,8 +221,8 @@ def main():
                         logits = model(**batch)
                         loss = criterion(logits, labels)
 
-                        val_logits_tensor[start_idx:start_idx + logits.size(0), :] = logits.detach().cpu()
-                        val_labels_tensor[start_idx:start_idx + labels.size(0), :] = labels.detach().cpu()
+                        val_logits_tensor[val_total_samples:val_total_samples + logits.size(0), :] = logits.detach().cpu()
+                        val_labels_tensor[val_total_samples:val_total_samples + labels.size(0), :] = labels.detach().cpu()
 
                         val_loss += loss.item() * labels.size(0)
                         val_total_samples += labels.size(0)
@@ -234,16 +231,16 @@ def main():
                 wandb.log({
                     "Validation Loss": val_loss,
                     "Epoch": epoch + 1,
-                    "Batch": start_idx
+                    "Batch": val_total_samples
                 })
 
                 metrics = compute_metrics(val_logits_tensor, val_labels_tensor)
                 metrics["epoch"] = epoch + 1
-                metrics["batch"] = start_idx
+                metrics["batch"] = val_total_samples
                 wandb.log(metrics)
 
                 model.train()
-                save_path = f"{config.get("checkpoint_path", "checkpoints/")}_{model.model_name}_epoch{epoch+1}_batch{start_idx}_valloss{val_loss:.4f}.pt"
+                save_path = f"{config.get("checkpoint_path", "checkpoints/")}_{model.model_name}_epoch{epoch+1}_batch{val_total_samples}_valloss{val_loss:.4f}.pt"
                 torch.save({
                     "model_state_dict": model.state_dict(),
                     "backbone": model.backbone.state_dict(),
@@ -281,8 +278,8 @@ def main():
                     logits = model(**batch)
                     loss = criterion(logits, labels)
 
-                    val_logits_tensor[start_idx:start_idx + logits.size(0), :] = logits.detach().cpu()
-                    val_labels_tensor[start_idx:start_idx + labels.size(0), :] = labels.detach().cpu()
+                    val_logits_tensor[val_total_samples:val_total_samples + logits.size(0), :] = logits.detach().cpu()
+                    val_labels_tensor[val_total_samples:val_total_samples + labels.size(0), :] = labels.detach().cpu()
 
                     val_loss += loss.item() * labels.size(0)
                     val_total_samples += labels.size(0)
