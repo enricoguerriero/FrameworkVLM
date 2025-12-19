@@ -182,7 +182,7 @@ def main():
             optimizer.zero_grad()
 
             with autocast(device_type="cuda"):
-                logits = model(**{k: v.to(device) for k, v in batch.items()})
+                logits = model(**batch)
                 loss = criterion(logits, labels)
             
             logits_tensor[start_idx:start_idx + logits.size(0), :] = logits.detach().cpu()
@@ -218,7 +218,7 @@ def main():
                     for batch in tqdm(val_loader, desc=f"Epoch {epoch+1} Validation", total=N_val/config.get("batch_size", 4)):
 
                         labels = batch.pop("labels").to(device)
-                        logits = model(**{k: v.to(device) for k, v in batch.items()})
+                        logits = model(**batch)
                         loss = criterion(logits, labels)
 
                         val_logits_tensor[start_idx:start_idx + logits.size(0), :] = logits.detach().cpu()
