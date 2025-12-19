@@ -181,7 +181,7 @@ def main():
             labels = batch.pop("labels").to(device)
             optimizer.zero_grad()
 
-            with autocast():
+            with autocast(device_type="cuda"):
                 logits = model(**{k: v.to(device) for k, v in batch.items()})
                 loss = criterion(logits, labels)
             
