@@ -34,14 +34,6 @@ class VisionLanguageModel(nn.Module):
         pooled = (x * mask.unsqueeze(-1)).sum(1) / \
                 mask.sum(1, keepdim=True).clamp(min=1)
         return pooled
-    
-    def build_attention_pooling(self):
-        self.attn_pool = AttentionPooling(self.hidden_size)
-
-    def load_attention_pooling(self, checkpoint: dict):
-        self.build_attention_pooling()
-        self.attn_pool.load_state_dict(checkpoint["attn_pool"], strict=False)
-        self.attn_pool = self.attn_pool.to(self.input_device)
 
     def forward(self, pixel_values_videos: torch.Tensor, input_ids: torch.Tensor, attention_mask: torch.Tensor):
 
@@ -61,15 +53,15 @@ class VisionLanguageModel(nn.Module):
 
         return logits
     
-    def load_backbone(self, checkpoint: dict):
+    def load_backbone(self, checkpoint: dict, config: dict = None):
 
-        lora_config = checkpoint.get("lora_config", None)
+        lora_config = config.get("lora_config", None)
         self.inject_lora_layers(lora_config)
         self.backbone.load_state_dict(checkpoint["backbone"], strict=False)
     
-    def load_classifier(self, checkpoint: dict):
+    def load_classifier(self, checkpoint: dict, config: dict = None):
 
-        classifier_config = checkpoint.get("classifier_config", None)
+        classifier_config = config.get("classifier_config", None)
         self.build_classifier(classifier_config)
         self.classifier.load_state_dict(checkpoint["classifier"], strict=False)
         self.classifier = self.classifier.to(self.input_device)
@@ -86,9 +78,9 @@ class VisionLanguageModel(nn.Module):
             bias = lora_config.get("bias", "none"),
         )
 
-        if lora_config["modality"] == "language":
+        if modality == "language":
             self.backbone.language_model = get_peft_model(self.backbone.language_model, lora_cfg)
-        elif lora_config["modality"] == "total":
+        elif modality == "total":
             self.backbone = get_peft_model(self.backbone, lora_cfg)
         else:
             raise ValueError("Modality must be either 'language' or 'total'.")
@@ -103,3 +95,11 @@ class VisionLanguageModel(nn.Module):
             dropout = classifier_config.get("dropout", 0.2),
             bias = bias if classifier_config.get("use_bias", True) else None,
         )
+    
+    def build_attention_pooling(self):
+        self.attn_pool = AttentionPooling(self.hidden_size)
+
+    def load_attention_pooling(self, checkpoint: dict):
+        self.build_attention_pooling()
+        self.attn_pool.load_state_dict(checkpoint["attn_pool"], strict=False)
+        self.attn_pool = self.attn_pool.to(self.input_device)

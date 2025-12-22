@@ -183,8 +183,7 @@ def main():
         batch_size = config.get("classifier_batch_size", 4),
         shuffle = True,
         num_workers = config.get("num_workers", 0),
-        pin_memory = config.get("num_workers", 0) > 0,
-        collate_fn=collate_fn
+        pin_memory = config.get("num_workers", 0) > 0
     )
     logger.debug("DataLoader for cached training features created.")
 
@@ -220,8 +219,7 @@ def main():
             batch_size = config.get("classifier_batch_size", 4),
             shuffle = False,
             num_workers = config.get("num_workers", 0),
-            pin_memory = config.get("num_workers", 0) > 0,
-            collate_fn=collate_fn
+            pin_memory = config.get("num_workers", 0) > 0
         )
         logger.debug("DataLoader for cached validation features created.")
 
@@ -532,9 +530,9 @@ def main():
         
         save_path = f"{config.get("checkpoint_path", "checkpoints/")}_{model.model_name}_epoch{epoch+1}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pt"
         torch.save({
-            "model_state_dict": model.state_dict(),
             "backbone": model.backbone.state_dict(),
             "classifier": model.classifier.state_dict(),
+            "attention_pooling": model.attn_pool.state_dict() if hasattr(model, "attn_pool") else None,
             "processor": model.processor,
             "optimizer_state_dict": optimizer.state_dict(),
             "epoch": num_epochs,
@@ -552,9 +550,9 @@ def main():
     logger.info("Fine-tuning completed.")
     save_path = f"{config.get('save_path', 'models/')}_{model.model_name}_LPFT_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pt"
     torch.save({
-        "model_state_dict": model.state_dict(),
         "backbone": model.backbone.state_dict(),
         "classifier": model.classifier.state_dict(),
+        "attention_pooling": model.attn_pool.state_dict() if hasattr(model, "attn_pool") else None,
         "processor": model.processor,
         "config": config
     }, save_path)

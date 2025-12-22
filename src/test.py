@@ -35,7 +35,7 @@ def main():
     logger.info(f"Starting testing with model {args.model}")
     logger.debug(f"Configuration: {config}")
 
-    model = load_model(args.model, **config.get("model_params", {}))
+    model = load_model(args.model)
     logger.debug(f"Model architecture: {model}")
     model = model.to(device)
 
@@ -76,10 +76,13 @@ def main():
         collate_fn = collate_fn
     )
     logger.debug("Test data loaded.")
-    model.load_classifier(saved_model)
+    model.load_classifier(saved_model, config)
     logger.info(f"Loaded classifier from {saved_model_path}")
-    model.load_backbone(saved_model)
+    model.load_backbone(saved_model, config)
     logger.info(f"Loaded backbone from {saved_model_path}")
+    if config.get("attention_pooling", False):
+        model.load_attention_pooling(saved_model)
+        logger.info(f"Loaded attention pooling from {saved_model_path}")
 
     model.eval()
     logits_tensor = torch.empty((len(test_dataset), model.num_classes), dtype=torch.float32)
