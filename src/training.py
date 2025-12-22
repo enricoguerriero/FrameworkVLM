@@ -1,5 +1,4 @@
 from argparse import ArgumentParser
-from xml.parsers.expat import model
 import wandb
 import yaml
 import torch
@@ -297,7 +296,7 @@ def main():
         metrics = compute_metrics(logits_tensor, labels_tensor)
         metrics["epoch"] = epoch + 1
         wandb.log({"Train Epoch Metrics": metrics})
-        
+
         logger.info(f"Epoch {epoch+1} completed. Train Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}" if not only_train else f"Epoch {epoch+1} completed. Train Loss: {train_loss:.4f}")
         save_path = f"{config.get('checkpoint_path', 'checkpoints/')}_{model.model_name}_epoch{epoch+1}_{datetime.now().strftime('%Y%m%d_%H%M%S')}" + ".pt"
         torch.save({

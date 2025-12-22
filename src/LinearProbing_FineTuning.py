@@ -1,5 +1,4 @@
 from argparse import ArgumentParser
-from xml.parsers.expat import model
 import wandb
 import yaml
 import torch
@@ -309,6 +308,10 @@ def main():
                 for batch in tqdm(val_loader, desc=f"Epoch {epoch + 1}/{num_epochs} Validation", total=len(val_loader)):
                     
                     features, labels, input_ids = batch 
+
+                    labels = labels.to(device)
+                    features = features.to(device)
+                    input_ids = input_ids.to(device)
 
                     with autocast(device_type="cuda", dtype=amp_dtype):
                          logits = model.forward_classifier(features, input_ids)

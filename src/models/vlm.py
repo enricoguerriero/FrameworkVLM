@@ -4,7 +4,6 @@ from peft import LoraConfig, TaskType, get_peft_model
 from .classifier import ClassifierHead
 from .attentionpooling import AttentionPooling
 
-
 class VisionLanguageModel(nn.Module):
     """
     Generic model class. For future implementations, implement subclasses of this class.
