@@ -35,6 +35,9 @@ def main():
 
     if debug:
         logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("httpcore").setLevel(logging.WARNING)
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
     else:
         logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
