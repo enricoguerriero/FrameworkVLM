@@ -135,6 +135,7 @@ def main():
     if attention_pooling:
         model.build_attention_pooling()
         logger.debug(f"Attention Pooling architecture: {model.attn_pool}")
+    model.to(device)
 
     for param in model.parameters():
         param.requires_grad = False
