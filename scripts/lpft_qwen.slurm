@@ -23,6 +23,6 @@ source activate NewbornEnv || conda activate NewbornEnv
 echo "virtual environment activated"
 
 export PYTHONPATH=.
-python -m src.LinearProbing_FineTuning --model Qwen3VL --debug
+python -m src.LinearProbing_FineTuning --model Qwen3VL --debug --attention_pooling
 
 echo "--- THE END ---"
