@@ -20,6 +20,8 @@ def main():
     args = parser.parse_args()
     debug = args.debug    
     saved_model_path = args.model_path
+    device = torch.device(config.get("device", "cuda" if torch.cuda.is_available() else "cpu"))
+
     saved_model = torch.load(saved_model_path, map_location=device, weights_only=False)
 
     config = saved_model.get("config", {})
@@ -35,7 +37,6 @@ def main():
 
     model = load_model(args.model, **config.get("model_params", {}))
     logger.debug(f"Model architecture: {model}")
-    device = torch.device(config.get("device", "cuda" if torch.cuda.is_available() else "cpu"))
     model = model.to(device)
 
     wandb.init(project="vlm-test", name=f"Test_{model.model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}", config=config)

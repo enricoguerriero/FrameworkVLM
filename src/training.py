@@ -293,10 +293,11 @@ def main():
             metrics = compute_metrics(val_logits_tensor, val_labels_tensor)
             metrics["epoch"] = epoch + 1
             wandb.log(metrics)
-        else:
-            metrics = compute_metrics(logits_tensor, labels_tensor)
-            metrics["epoch"] = epoch + 1
-            wandb.log(metrics)
+
+        metrics = compute_metrics(logits_tensor, labels_tensor)
+        metrics["epoch"] = epoch + 1
+        wandb.log({"Train Epoch Metrics": metrics})
+        
         logger.info(f"Epoch {epoch+1} completed. Train Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}" if not only_train else f"Epoch {epoch+1} completed. Train Loss: {train_loss:.4f}")
         save_path = f"{config.get('checkpoint_path', 'checkpoints/')}_{model.model_name}_epoch{epoch+1}_{datetime.now().strftime('%Y%m%d_%H%M%S')}" + ".pt"
         torch.save({
