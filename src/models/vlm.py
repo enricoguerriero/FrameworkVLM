@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from peft import LoraConfig, TaskType, get_peft_model
 from .classifier import ClassifierHead
+from .attentionpooling import AttentionPooling
 
 
 class VisionLanguageModel(nn.Module):
@@ -19,8 +20,28 @@ class VisionLanguageModel(nn.Module):
         self.backbone = None
         self.processor = None
         self.hidden_size = None
-        # self.attn_pool = None
+        self.attn_pool = None
         self.input_device = None
+
+    def pooling(self, x, inpu_ids):
+        
+        if self.attn_pool is not None:
+            padding_mask = (inpu_ids != self.backbone.config.pad_token_id).to(x.device)
+            return self.attn_pool(x, padding_mask)
+        
+        video_token_id = self.backbone.config.video_token_id
+        mask = (inpu_ids == video_token_id).to(x.device)
+        pooled = (x * mask.unsqueeze(-1)).sum(1) / \
+                mask.sum(1, keepdim=True).clamp(min=1)
+        return pooled
+    
+    def build_attention_pooling(self):
+        self.attn_pool = AttentionPooling(self.hidden_size)
+
+    def load_attention_pooling(self, checkpoint: dict):
+        self.build_attention_pooling()
+        self.attn_pool.load_state_dict(checkpoint["attn_pool"], strict=False)
+        self.attn_pool = self.attn_pool.to(self.input_device)
 
     def forward(self, pixel_values_videos: torch.Tensor, input_ids: torch.Tensor, attention_mask: torch.Tensor):
 
@@ -33,12 +54,8 @@ class VisionLanguageModel(nn.Module):
         )
 
         h = outputs.hidden_states[-1]
-        video_token_id = self.backbone.config.video_token_id
         
-        video_mask = (input_ids == video_token_id).to(h.device)
-        
-        pooled = (h * video_mask.unsqueeze(-1)).sum(1) / \
-               video_mask.sum(1, keepdim=True).clamp(min=1) # Eventually attention pooling here 
+        pooled = self.pooling(h, input_ids)
                
         logits = self.classifier(pooled.float())
 

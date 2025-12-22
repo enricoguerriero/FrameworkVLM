@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader
 from torch.amp import GradScaler, autocast
 from torch.nn.utils import clip_grad_norm_
 from torch.optim.lr_scheduler import StepLR
+from torch.utils.data import TensorDataset
 
 from .utils import load_model, collate_fn, compute_metrics
 from .clip_dataset import ClipDataset
@@ -20,14 +21,18 @@ def main():
     parser.add_argument("--model", type=str, required=True, help="Model name to use.")
     parser.add_argument("--debug", action="store_true", default=False, help="Enable debug mode.")
     parser.add_argument("--only_train", action="store_true", default=False, help="Only run training, skip validation.")
+    parser.add_argument("--attention_pooling", action="store_true", default=False, help="Use attention pooling instead of mean pooling.")
 
     args = parser.parse_args()
     debug = args.debug
     only_train = args.only_train
+    attention_pooling = args.attention_pooling
 
     with open("config.yaml", "r") as f:
         config = yaml.safe_load(f)
-    
+    if attention_pooling:
+        config["attention_pooling"] = True
+
     if debug:
         logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
     else:
@@ -124,11 +129,17 @@ def main():
         bias = bias
     )
     logger.debug(f"Classifier architecture: {model.classifier}")
+    if attention_pooling:
+        model.build_attention_pooling()
+        logger.debug(f"Attention Pooling architecture: {model.attn_pool}")
 
     for param in model.parameters():
         param.requires_grad = False
     for param in model.classifier.parameters():
         param.requires_grad = True
+    if attention_pooling:
+        for param in model.attn_pool.parameters():
+            param.requires_grad = True
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"Total trainable parameters: {total_params}")
     all_params = sum(p.numel() for p in model.parameters())
@@ -136,6 +147,83 @@ def main():
 
     model.to(device)
     logger.debug("Model moved to device.")
+
+    amp_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+    logger.debug(f"Using AMP dtype: {amp_dtype}")
+    scaler = GradScaler(enabled=(amp_dtype == torch.float16))
+
+    logger.info("Caching backbone outputs for training ...")
+    model.eval()
+    all_train_features = []
+    all_train_labels = []
+    all_train_input_ids = []
+
+    with torch.no_grad():
+        for batch in tqdm(train_loader, desc="Caching Train Features", total=len(train_loader)):
+            labels = batch.pop("labels").to(device)
+
+            with autocast(device_type="cuda", dtype=amp_dtype):
+                features, input_ids = model.forward_backbone(**batch)
+
+            all_train_features.append(features.cpu().float())
+            all_train_labels.append(labels.cpu().float())
+            all_train_input_ids.append(input_ids.cpu().float())
+
+    train_features_tensor = torch.cat(all_train_features, dim=0)
+    train_labels_tensor = torch.cat(all_train_labels, dim=0)
+    train_input_ids_tensor = torch.cat(all_train_input_ids, dim=0)
+    logger.info("Backbone outputs for training cached.")
+    logger.debug(f"Train features tensor shape: {train_features_tensor.shape}")
+    logger.debug(f"Train labels tensor shape: {train_labels_tensor.shape}")
+    logger.debug(f"Train input_ids tensor shape: {train_input_ids_tensor.shape}")
+    train_dataset = TensorDataset(train_features_tensor, train_labels_tensor, train_input_ids_tensor)
+    logger.debug("Training TensorDataset created.")
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size = config.get("classifier_batch_size", 4),
+        shuffle = True,
+        num_workers = config.get("num_workers", 0),
+        pin_memory = config.get("num_workers", 0) > 0,
+        collate_fn=collate_fn
+    )
+    logger.debug("DataLoader for cached training features created.")
+
+    if not only_train:
+        logger.info("Caching backbone outputs for validation ...")
+        all_val_features = []
+        all_val_labels = []
+        all_val_input_ids = []
+
+        with torch.no_grad():
+            for batch in tqdm(val_loader, desc="Caching Validation Features", total=len(val_loader)):
+                labels = batch.pop("labels").to(device)
+
+                with autocast(device_type="cuda", dtype=amp_dtype):
+                    features, input_ids = model.forward_backbone(**batch)
+
+                all_val_features.append(features.cpu().float())
+                all_val_labels.append(labels.cpu().float())
+                all_val_input_ids.append(input_ids.cpu().float())
+
+        val_features_tensor = torch.cat(all_val_features, dim=0)
+        val_labels_tensor = torch.cat(all_val_labels, dim=0)
+        val_input_ids_tensor = torch.cat(all_val_input_ids, dim=0)
+        logger.info("Backbone outputs for validation cached.")
+        logger.debug(f"Validation features tensor shape: {val_features_tensor.shape}")
+        logger.debug(f"Validation labels tensor shape: {val_labels_tensor.shape}")
+        logger.debug(f"Validation input_ids tensor shape: {val_input_ids_tensor.shape}")
+
+        val_dataset = TensorDataset(val_features_tensor, val_labels_tensor, val_input_ids_tensor)
+        logger.debug("Validation TensorDataset created.")
+        val_loader = DataLoader(
+            val_dataset,
+            batch_size = config.get("classifier_batch_size", 4),
+            shuffle = False,
+            num_workers = config.get("num_workers", 0),
+            pin_memory = config.get("num_workers", 0) > 0,
+            collate_fn=collate_fn
+        )
+        logger.debug("DataLoader for cached validation features created.")
 
     optimizer = torch.optim.AdamW(
         filter(lambda p: p.requires_grad, model.parameters()),
@@ -154,9 +242,6 @@ def main():
     val_step = config.get("validation_step", None) if not only_train else None
     num_epochs = config.get("classifier_epochs", 1)
 
-    amp_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
-    logger.debug(f"Using AMP dtype: {amp_dtype}")
-    scaler = GradScaler(enabled=(amp_dtype == torch.float16))
     best_val_f1 = 0.0
     scheduler = StepLR(optimizer, step_size=5, gamma=0.5)
 
@@ -176,7 +261,7 @@ def main():
             optimizer.zero_grad()
 
             with autocast(device_type="cuda", dtype=amp_dtype):
-                logits = model(**batch)
+                logits = model.forward_classifier(batch["features"].to(device), batch["input_ids"].to(device))
                 loss = criterion(logits, labels)
 
             scaler.scale(loss).backward()
@@ -217,7 +302,7 @@ def main():
                     labels = batch.pop("labels").to(device)
 
                     with autocast(device_type="cuda", dtype=amp_dtype):
-                         logits = model(**batch)
+                         logits = model.forward_classifier(batch["features"].to(device), batch["input_ids"].to(device))
                          loss = criterion(logits, labels)
 
                     val_logits_tensor[val_total_samples:val_total_samples + logits.size(0), :] = logits.detach().cpu()
@@ -239,6 +324,7 @@ def main():
             save_path = f"{config.get("checkpoint_path", "checkpoints/")}_{model.model_name}_epoch{epoch+1}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pt"
             torch.save({
                 "classifier": model.classifier.state_dict(),
+                "attention_pooling": model.attn_pool.state_dict() if model.attn_pool is not None else None,
                 "optimizer_state_dict": optimizer.state_dict(),
                 "epoch": epoch + 1
             }, save_path)
@@ -257,6 +343,10 @@ def main():
         logger.info(f"Loading the best model from {best_model_path} with Macro F1: {best_val_f1:.4f}")
         checkpoint = torch.load(best_model_path, map_location=device)
         model.classifier.load_state_dict(checkpoint["classifier"])
+        logger.debug("Best classifier loaded.")
+        if attention_pooling:
+            model.attn_pool.load_state_dict(checkpoint["attention_pooling"])
+            logger.debug("Best attention pooling loaded.")
         logger.info("Best model loaded.")
     
     logger.info("Injecting LoRA layers into the backbone for fine-tuning ...")
