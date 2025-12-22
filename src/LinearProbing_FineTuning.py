@@ -176,10 +176,10 @@ def main():
     logger.debug(f"Train features tensor shape: {train_features_tensor.shape}")
     logger.debug(f"Train labels tensor shape: {train_labels_tensor.shape}")
     logger.debug(f"Train input_ids tensor shape: {train_input_ids_tensor.shape}")
-    train_dataset = TensorDataset(train_features_tensor, train_labels_tensor, train_input_ids_tensor)
+    train_cached_dataset = TensorDataset(train_features_tensor, train_labels_tensor, train_input_ids_tensor)
     logger.debug("Training TensorDataset created.")
     train_loader = DataLoader(
-        train_dataset,
+        train_cached_dataset,
         batch_size = config.get("classifier_batch_size", 4),
         shuffle = True,
         num_workers = config.get("num_workers", 0),
@@ -212,10 +212,10 @@ def main():
         logger.debug(f"Validation labels tensor shape: {val_labels_tensor.shape}")
         logger.debug(f"Validation input_ids tensor shape: {val_input_ids_tensor.shape}")
 
-        val_dataset = TensorDataset(val_features_tensor, val_labels_tensor, val_input_ids_tensor)
+        val_cached_dataset = TensorDataset(val_features_tensor, val_labels_tensor, val_input_ids_tensor)
         logger.debug("Validation TensorDataset created.")
         val_loader = DataLoader(
-            val_dataset,
+            val_cached_dataset,
             batch_size = config.get("classifier_batch_size", 4),
             shuffle = False,
             num_workers = config.get("num_workers", 0),
@@ -255,11 +255,16 @@ def main():
 
         for batch in tqdm(train_loader, desc=f"Epoch {epoch + 1}/{num_epochs} Training", total=len(train_loader)):
             
-            labels = batch.pop("labels").to(device)
+            features, labels, input_ids = batch 
+            
+            labels = labels.to(device)
+            features = features.to(device)
+            input_ids = input_ids.to(device)
+
             optimizer.zero_grad()
 
             with autocast(device_type="cuda", dtype=amp_dtype):
-                logits = model.forward_classifier(batch["features"].to(device), batch["input_ids"].to(device))
+                logits = model.forward_classifier(features, input_ids)
                 loss = criterion(logits, labels)
 
             scaler.scale(loss).backward()
@@ -297,10 +302,10 @@ def main():
             with torch.no_grad():
                 for batch in tqdm(val_loader, desc=f"Epoch {epoch + 1}/{num_epochs} Validation", total=len(val_loader)):
                     
-                    labels = batch.pop("labels").to(device)
+                    features, labels, input_ids = batch 
 
                     with autocast(device_type="cuda", dtype=amp_dtype):
-                         logits = model.forward_classifier(batch["features"].to(device), batch["input_ids"].to(device))
+                         logits = model.forward_classifier(features, input_ids)
                          loss = criterion(logits, labels)
 
                     val_logits_tensor[val_total_samples:val_total_samples + logits.size(0), :] = logits.detach().cpu()
