@@ -8,6 +8,9 @@ class AttentionPooling(nn.Module):
 
     def forward(self, x, mask=None):
         # x: (batch, seq_len, hidden_dim)
+        print("x device:", x.device, flush=True)
+        print("mask device:", mask.device if mask is not None else "None", flush=True)
+        print("weights device:", self.attn.weight.device, flush=True)
         attn_weights = self.attn(x).squeeze(-1)  # (batch, seq_len)
         if mask is not None:
             attn_weights = attn_weights.masked_fill(~mask, float('-inf'))

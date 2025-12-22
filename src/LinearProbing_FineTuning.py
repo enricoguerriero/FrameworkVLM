@@ -247,6 +247,8 @@ def main():
     best_val_f1 = 0.0
     scheduler = StepLR(optimizer, step_size=5, gamma=0.5)
 
+    model.to(device)
+
     for epoch in range(num_epochs):
 
         logger.info(f"Starting epoch {epoch + 1}/{num_epochs} of training classifier head ...")
