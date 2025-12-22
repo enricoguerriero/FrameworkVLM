@@ -1,14 +1,11 @@
 from argparse import ArgumentParser
-from xml.parsers.expat import model
 import wandb
-import yaml
 import torch
 from tqdm import tqdm
 import logging
 from datetime import datetime
 from torch.utils.data import DataLoader
-from torch.amp import GradScaler, autocast
-from torch.nn.utils import clip_grad_norm_
+from torch.amp import autocast
 
 from .utils import load_model, collate_fn, compute_metrics
 from .clip_dataset import ClipDataset
@@ -23,9 +20,9 @@ def main():
     args = parser.parse_args()
     debug = args.debug    
     saved_model_path = args.model_path
-    
-    with open("config.yaml", "r") as f:
-        config = yaml.safe_load(f)
+    saved_model = torch.load(saved_model_path, map_location=device, weights_only=False)
+
+    config = saved_model.get("config", {})
 
     if debug:
         logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
@@ -78,7 +75,6 @@ def main():
         collate_fn = collate_fn
     )
     logger.debug("Test data loaded.")
-    saved_model = torch.load(saved_model_path, map_location=device, weights_only=False)
     model.load_classifier(saved_model)
     logger.info(f"Loaded classifier from {saved_model_path}")
     model.load_backbone(saved_model)
@@ -100,7 +96,7 @@ def main():
     
     metrics = compute_metrics(logits_tensor, labels_tensor)
     logger.info(f"Test Metrics: {metrics}")
-    wandb.log({"test_metrics": metrics})
+    wandb.log(metrics)
     logger.info("Testing completed.")
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ from datetime import datetime
 from torch.utils.data import DataLoader
 from torch.amp import GradScaler, autocast
 from torch.nn.utils import clip_grad_norm_
+from torch.optim.lr_scheduler import StepLR
 
 from .utils import load_model, collate_fn, compute_metrics
 from .clip_dataset import ClipDataset
@@ -157,6 +158,7 @@ def main():
     logger.debug(f"Using AMP dtype: {amp_dtype}")
     scaler = GradScaler(enabled=(amp_dtype == torch.float16))
     best_val_f1 = 0.0
+    scheduler = StepLR(optimizer, step_size=5, gamma=0.5)
 
     for epoch in range(num_epochs):
 
@@ -189,13 +191,16 @@ def main():
             train_loss += loss.item() * labels.size(0)
             total_samples += labels.size(0)
         
+        scheduler.step()
+
         wandb.log({
             "Train Loss": train_loss / total_samples,
-            "Epoch": epoch + 1
+            "Classifier Epoch": epoch + 1,
+            "learning_rate": optimizer.param_groups[0]['lr']
         })
         metrics = compute_metrics(logits_tensor, labels_tensor)
         metrics["epoch"] = epoch + 1
-        wandb.log(metrics)
+        wandb.log({"classifier_train": metrics})
 
         if not only_train:
             logger.info(f"Starting epoch {epoch + 1}/{num_epochs} of validation ...")
@@ -223,12 +228,12 @@ def main():
 
             wandb.log({
                 "Validation Loss": val_loss / val_total_samples,
-                "Epoch": epoch + 1
+                " Classifier Epoch": epoch + 1
             })
 
             metrics = compute_metrics(val_logits_tensor, val_labels_tensor)
             metrics["epoch"] = epoch + 1
-            wandb.log(metrics)
+            wandb.log({"classifier_val": metrics})
 
             model.train()
             save_path = f"{config.get("checkpoint_path", "checkpoints/")}_{model.model_name}_epoch{epoch+1}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pt"
@@ -399,7 +404,7 @@ def main():
         })
         metrics = compute_metrics(logits_tensor, labels_tensor)
         metrics["epoch"] = epoch + 1
-        wandb.log(metrics)
+        wandb.log({"Fine-Tune Train": metrics})
 
         if not only_train:
             logger.info(f"Starting epoch {epoch + 1}/{num_epochs} of fine-tuning validation ...")
