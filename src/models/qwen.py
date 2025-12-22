@@ -19,6 +19,18 @@ class Qwen3VL(VisionLanguageModel):
         except:
             self.input_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.video_tokens_allowed = True
+    
+    def pooling(self, x, input_ids):
+        
+        if self.attn_pool is not None:
+            padding_mask = (input_ids != 151643).to(x.device) #Hardcoded from documentation
+            return self.attn_pool(x, padding_mask)
+        
+        video_token_id = self.backbone.config.video_token_id
+        mask = (input_ids == video_token_id).to(x.device)
+        pooled = (x * mask.unsqueeze(-1)).sum(1) / \
+                mask.sum(1, keepdim=True).clamp(min=1)
+        return pooled
 
     def forward(self, pixel_values_videos: torch.Tensor, video_grid_thw: torch.Tensor, input_ids: torch.Tensor, attention_mask: torch.Tensor):
 
