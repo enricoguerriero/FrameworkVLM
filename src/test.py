@@ -20,7 +20,7 @@ def main():
     args = parser.parse_args()
     debug = args.debug    
     saved_model_path = args.model_path
-    device = torch.device(config.get("device", "cuda" if torch.cuda.is_available() else "cpu"))
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     saved_model = torch.load(saved_model_path, map_location=device, weights_only=False)
 
