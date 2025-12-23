@@ -43,7 +43,9 @@ class Qwen3VL(VisionLanguageModel):
         )
 
         h = outputs.hidden_states[-1]
-        pooled = self.pooling(h, input_ids)
+        norm_layer = self.backbone.model.language_model.norm
+        h_norm = norm_layer(h)
+        pooled = self.pooling(h_norm, attention_mask)
                
         logits = self.classifier(pooled.float())
 
@@ -61,8 +63,10 @@ class Qwen3VL(VisionLanguageModel):
         )
 
         h = outputs.hidden_states[-1]
+        norm_layer = self.backbone.model.language_model.norm
+        h_norm = norm_layer(h)
 
-        return h, attention_mask
+        return h_norm, attention_mask
 
     def forward_classifier(self, features: torch.Tensor, attention_mask: torch.Tensor):
         pooled = self.pooling(features, attention_mask)

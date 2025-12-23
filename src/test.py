@@ -95,8 +95,8 @@ def main():
             with autocast(device_type="cuda", dtype=torch.float16 if not torch.cuda.is_bf16_supported() else torch.bfloat16):
                 logits = model(**batch)
 
-            logits_tensor[i] = logits.detach().cpu()
-            labels_tensor[i] = labels.detach().cpu()
+            logits_tensor[i] = logits.detach().cpu().squeeze(0)
+            labels_tensor[i] = labels.detach().cpu().squeeze(0)
     
     metrics = compute_metrics(logits_tensor, labels_tensor)
     logger.info(f"Test Metrics: {metrics}")
