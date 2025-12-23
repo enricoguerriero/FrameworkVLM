@@ -73,7 +73,7 @@ class VisionLanguageModel(nn.Module):
             lora_alpha = lora_config["lora_alpha"],
             lora_dropout = lora_config["lora_dropout"],
             target_modules = lora_config["target_modules"],
-            task_type = TaskType.CAUSAL_LM,
+            task_type = TaskType.FEATURE_EXTRACTION,
             bias = lora_config.get("bias", "none"),
         )
 

@@ -18,16 +18,23 @@ def main():
     parser.add_argument("--model", type=str, required=True, help="Model name to use.")
     parser.add_argument("--debug", action="store_true", default=False, help="Enable debug mode.")
     parser.add_argument("--only_train", action="store_true", default=False, help="Only run training, skip validation.")
+    parser.add_argument("--attention_pooling", action="store_true", default=False, help="Use attention pooling instead of mean pooling.")
 
     args = parser.parse_args()
     debug = args.debug
     only_train = args.only_train
+    attention_pooling = args.attention_pooling
 
     with open("config.yaml", "r") as f:
         config = yaml.safe_load(f)
-    
+    if attention_pooling:
+        config["attention_pooling"] = True
+
     if debug:
         logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("httpcore").setLevel(logging.WARNING)
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
     else:
         logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
@@ -121,7 +128,13 @@ def main():
         classifier_config = config.get("classifier_config", {}),
         bias = bias
     )
-    logger.debug(f"Classifier architecture: {model.classifier}")
+    logger.debug(f"Classifier architecture: {model.classifier}")\
+    
+    if config.get("attention_pooling", False):
+        model.build_attention_pooling(
+            attention_pooling_config = config.get("attention_pooling_config", {})
+        )
+        logger.debug(f"Attention Pooling architecture: {model.attn_pool}")
 
     if config.get("train_backbone", False):
         model.inject_lora_layers(
@@ -136,6 +149,9 @@ def main():
         for name, param in model.backbone.named_parameters():
             if "lora_" in name:
                 param.requires_grad = True
+    if config.get("attention_pooling", False):
+        for param in model.attn_pool.parameters():
+            param.requires_grad = True
     for param in model.classifier.parameters():
         param.requires_grad = True
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -320,17 +336,10 @@ def main():
     logger.info("Training completed.")
     save_path = f"{config.get('save_path', 'models/')}_{model.model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pt"
     torch.save({
-        "model_state_dict": model.state_dict(),
         "backbone": model.backbone.state_dict(),
         "classifier": model.classifier.state_dict(),
+        "attention_pooling": model.attn_pool.state_dict() if hasattr(model, "attn_pool") else None,
         "processor": model.processor,
-        "optimizer_state_dict": optimizer.state_dict(),
-        "epoch": num_epochs,
-        "train_loss": train_loss,
-        "val_loss": val_loss if not only_train else None,
-        "metrics": metrics,
-        "lora_config": config.get("lora_config", {}),
-        "classifier_config": config.get("classifier_config", {}),
         "config": config
     }, save_path)
     logger.info(f"Final model saved at {save_path}")
