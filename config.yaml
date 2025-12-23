@@ -6,8 +6,8 @@ prompt: >
   - What actions are being performed.
   - What equipment is being used.
 
-# train_data: data/train.csv
-train_data: data/demo.csv
+train_data: data/train.csv
+# train_data: data/demo.csv
 validation_data: data/validation.csv
 test_data: data/test.csv
 
