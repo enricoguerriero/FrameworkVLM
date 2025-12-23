@@ -188,7 +188,8 @@ def main():
         batch_size = config.get("classifier_batch_size", 4),
         shuffle = True,
         num_workers = config.get("num_workers", 0),
-        pin_memory = config.get("num_workers", 0) > 0
+        pin_memory = config.get("num_workers", 0) > 0,
+        drop_last=True
     )
     logger.debug("DataLoader for cached training features created.")
 
@@ -224,7 +225,8 @@ def main():
             batch_size = config.get("classifier_batch_size", 4),
             shuffle = False,
             num_workers = config.get("num_workers", 0),
-            pin_memory = config.get("num_workers", 0) > 0
+            pin_memory = config.get("num_workers", 0) > 0,
+            drop_last=True
         )
         logger.debug("DataLoader for cached validation features created.")
 
