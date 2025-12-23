@@ -95,7 +95,7 @@ def main():
     logger.debug("Starting data loading ...")
     train_loader = DataLoader(
         train_dataset,
-        batch_size = config.get("classifier_batch_size", 4),
+        batch_size = config.get("fine_tuning_batch_size", 4),
         shuffle = True,
         num_workers = config.get("num_workers", 0),
         pin_memory = config.get("num_workers", 0) > 0,
@@ -105,7 +105,7 @@ def main():
     if not only_train:
         val_loader = DataLoader(
             val_dataset,
-            batch_size = config.get("classifier_batch_size", 4),
+            batch_size = config.get("fine_tuning_batch_size", 4),
             shuffle = False,
             num_workers = config.get("num_workers", 0),
             pin_memory = config.get("num_workers", 0) > 0,
@@ -159,28 +159,30 @@ def main():
     model.eval()
     all_train_features = []
     all_train_labels = []
-    all_train_input_ids = []
+    all_train_attention_masks = []
 
     with torch.no_grad():
         for batch in tqdm(train_loader, desc="Caching Train Features", total=len(train_loader)):
             labels = batch.pop("labels").to(device)
 
             with autocast(device_type="cuda", dtype=amp_dtype):
-                features, input_ids = model.forward_backbone(**batch)
+                features, attention_mask = model.forward_backbone(**batch)
 
             all_train_features.append(features.cpu().float())
             all_train_labels.append(labels.cpu().float())
-            all_train_input_ids.append(input_ids.cpu().float())
+            all_train_attention_masks.append(attention_mask.cpu().bool())
 
     train_features_tensor = torch.cat(all_train_features, dim=0)
     train_labels_tensor = torch.cat(all_train_labels, dim=0)
-    train_input_ids_tensor = torch.cat(all_train_input_ids, dim=0)
+    train_attention_masks_tensor = torch.cat(all_train_attention_masks, dim=0)
+
     logger.info("Backbone outputs for training cached.")
     logger.debug(f"Train features tensor shape: {train_features_tensor.shape}")
     logger.debug(f"Train labels tensor shape: {train_labels_tensor.shape}")
-    logger.debug(f"Train input_ids tensor shape: {train_input_ids_tensor.shape}")
-    train_cached_dataset = TensorDataset(train_features_tensor, train_labels_tensor, train_input_ids_tensor)
+    logger.debug(f"Train attention_masks tensor shape: {train_attention_masks_tensor.shape}")
+    train_cached_dataset = TensorDataset(train_features_tensor, train_labels_tensor, train_attention_masks_tensor)
     logger.debug("Training TensorDataset created.")
+
     train_loader = DataLoader(
         train_cached_dataset,
         batch_size = config.get("classifier_batch_size", 4),
@@ -194,28 +196,28 @@ def main():
         logger.info("Caching backbone outputs for validation ...")
         all_val_features = []
         all_val_labels = []
-        all_val_input_ids = []
+        all_val_attention_masks = []
 
         with torch.no_grad():
             for batch in tqdm(val_loader, desc="Caching Validation Features", total=len(val_loader)):
                 labels = batch.pop("labels").to(device)
 
                 with autocast(device_type="cuda", dtype=amp_dtype):
-                    features, input_ids = model.forward_backbone(**batch)
+                    features, attention_mask = model.forward_backbone(**batch)
 
                 all_val_features.append(features.cpu().float())
                 all_val_labels.append(labels.cpu().float())
-                all_val_input_ids.append(input_ids.cpu().float())
+                all_val_attention_masks.append(attention_mask.cpu().bool())
 
         val_features_tensor = torch.cat(all_val_features, dim=0)
         val_labels_tensor = torch.cat(all_val_labels, dim=0)
-        val_input_ids_tensor = torch.cat(all_val_input_ids, dim=0)
+        val_attention_masks_tensor = torch.cat(all_val_attention_masks, dim=0)
         logger.info("Backbone outputs for validation cached.")
         logger.debug(f"Validation features tensor shape: {val_features_tensor.shape}")
         logger.debug(f"Validation labels tensor shape: {val_labels_tensor.shape}")
-        logger.debug(f"Validation input_ids tensor shape: {val_input_ids_tensor.shape}")
+        logger.debug(f"Validation attention_masks tensor shape: {val_attention_masks_tensor.shape}")
 
-        val_cached_dataset = TensorDataset(val_features_tensor, val_labels_tensor, val_input_ids_tensor)
+        val_cached_dataset = TensorDataset(val_features_tensor, val_labels_tensor, val_attention_masks_tensor)
         logger.debug("Validation TensorDataset created.")
         val_loader = DataLoader(
             val_cached_dataset,
@@ -264,12 +266,12 @@ def main():
             
             labels = labels.to(device)
             features = features.to(device)
-            input_ids = input_ids.to(device)
+            attention_masks = input_ids.to(device)
 
             optimizer.zero_grad()
 
             with autocast(device_type="cuda", dtype=amp_dtype):
-                logits = model.forward_classifier(features, input_ids)
+                logits = model.forward_classifier(features, attention_masks)
                 loss = criterion(logits, labels)
 
             scaler.scale(loss).backward()
@@ -311,10 +313,10 @@ def main():
 
                     labels = labels.to(device)
                     features = features.to(device)
-                    input_ids = input_ids.to(device)
+                    attention_masks = attention_masks.to(device)
 
                     with autocast(device_type="cuda", dtype=amp_dtype):
-                         logits = model.forward_classifier(features, input_ids)
+                         logits = model.forward_classifier(features, attention_masks)
                          loss = criterion(logits, labels)
 
                     val_logits_tensor[val_total_samples:val_total_samples + logits.size(0), :] = logits.detach().cpu()

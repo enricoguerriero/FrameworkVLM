@@ -20,17 +20,16 @@ class Qwen3VL(VisionLanguageModel):
             self.input_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.video_tokens_allowed = True
     
-    def pooling(self, x, input_ids):
+    def pooling(self, x, attention_mask):
         
         if self.attn_pool is not None:
-            padding_mask = (input_ids != 151643).to(x.device) #Hardcoded from documentation
-            return self.attn_pool(x, padding_mask)
+            return self.attn_pool(x, attention_mask)
         
-        video_token_id = self.backbone.config.video_token_id
-        mask = (input_ids == video_token_id).to(x.device)
-        pooled = (x * mask.unsqueeze(-1)).sum(1) / \
-                mask.sum(1, keepdim=True).clamp(min=1)
-        return pooled
+        # video_token_id = self.backbone.config.video_token_id
+        # mask = (input_ids == video_token_id).to(x.device)
+        # pooled = (x * mask.unsqueeze(-1)).sum(1) / \
+        #         mask.sum(1, keepdim=True).clamp(min=1)
+        # return pooled # TO FIX LATER
 
     def forward(self, pixel_values_videos: torch.Tensor, video_grid_thw: torch.Tensor, input_ids: torch.Tensor, attention_mask: torch.Tensor):
 
@@ -63,10 +62,10 @@ class Qwen3VL(VisionLanguageModel):
 
         h = outputs.hidden_states[-1]
 
-        return h, input_ids
+        return h, attention_mask
 
-    def forward_classifier(self, features: torch.Tensor, input_ids: torch.Tensor):
-        pooled = self.pooling(features, input_ids)
+    def forward_classifier(self, features: torch.Tensor, attention_mask: torch.Tensor):
+        pooled = self.pooling(features, attention_mask)
         logits = self.classifier(pooled.to(self.input_device))
         return logits
     

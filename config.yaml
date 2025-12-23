@@ -22,7 +22,7 @@ lora_config:
   modality: total
 
 classifier_config:
-  dims: []
+  dims: [256]
   activation: relu
   use_bias: true
   classifier_dropout: 0.1
@@ -41,7 +41,7 @@ save_path: models/
 # Linear probing + Fine-tuning specific configs
 classifier_learning_rate: 0.001
 classifier_epochs: 50
-classifier_batch_size: 16
+classifier_batch_size: 256
 fine_tuning_learning_rate: 0.000001
 fine_tuning_epochs: 2
 fine_tuning_batch_size: 1
