@@ -43,7 +43,10 @@ class Qwen3VL(VisionLanguageModel):
         )
 
         h = outputs.hidden_states[-1]
-        norm_layer = self.backbone.model.language_model.norm
+        try:
+            norm_layer = self.backbone.model.language_model.norm # if lora applied to language model / no lora
+        except:
+            norm_layer = self.backbone.model.model.language_model.norm # if lora applied to the whole model
         h_norm = norm_layer(h)
         pooled = self.pooling(h_norm, attention_mask)
                
