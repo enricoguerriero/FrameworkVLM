@@ -267,11 +267,11 @@ def main():
 
         for batch in tqdm(train_loader, desc=f"Epoch {epoch + 1}/{num_epochs} Training", total=len(train_loader)):
             
-            features, labels, input_ids = batch 
+            features, labels, attention_masks = batch 
             
             labels = labels.to(device)
             features = features.to(device)
-            attention_masks = input_ids.to(device)
+            attention_masks = attention_masks.to(device)
 
             optimizer.zero_grad()
 
@@ -314,7 +314,7 @@ def main():
             with torch.no_grad():
                 for batch in tqdm(val_loader, desc=f"Epoch {epoch + 1}/{num_epochs} Validation", total=len(val_loader)):
                     
-                    features, labels, input_ids = batch 
+                    features, labels, attention_masks = batch 
 
                     labels = labels.to(device)
                     features = features.to(device)
