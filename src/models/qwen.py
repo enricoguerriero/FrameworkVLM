@@ -48,7 +48,7 @@ class Qwen3VL(VisionLanguageModel):
         except:
             norm_layer = self.backbone.model.model.language_model.norm # if lora applied to the whole model
         h_norm = norm_layer(h)
-        pooled = self.pooling(h_norm, attention_mask.to(self.input_device))
+        pooled = self.pooling(h_norm, attention_mask.bool().to(self.input_device))
                
         logits = self.classifier(pooled.float())
 
