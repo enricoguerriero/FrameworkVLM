@@ -131,9 +131,7 @@ def main():
     logger.debug(f"Classifier architecture: {model.classifier}")\
     
     if config.get("attention_pooling", False):
-        model.build_attention_pooling(
-            attention_pooling_config = config.get("attention_pooling_config", {})
-        )
+        model.build_attention_pooling()
         logger.debug(f"Attention Pooling architecture: {model.attn_pool}")
 
     if config.get("train_backbone", False):
