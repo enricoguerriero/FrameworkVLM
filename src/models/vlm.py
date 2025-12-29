@@ -102,3 +102,4 @@ class VisionLanguageModel(nn.Module):
         self.build_attention_pooling()
         self.attn_pool.load_state_dict(checkpoint["attn_pool"], strict=False)
         self.attn_pool = self.attn_pool.to(self.input_device)
+    

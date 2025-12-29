@@ -49,7 +49,10 @@ def main():
     device = torch.device(config.get("device", "cuda" if torch.cuda.is_available() else "cpu"))
     model = model.to(device)
 
-    wandb.init(project="vlm-training", name=f"Training_{model.model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}", config=config)
+    wandb.init(project="vlm-training", 
+               name=f"Training_{model.model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}", 
+               config=config,
+               save_code=True)
 
     prompt = config.get("prompt", "What's happening in the video?")
     system_message = config.get("system_message", "You are a helpful assistant.")
