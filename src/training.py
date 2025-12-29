@@ -19,11 +19,13 @@ def main():
     parser.add_argument("--debug", action="store_true", default=False, help="Enable debug mode.")
     parser.add_argument("--only_train", action="store_true", default=False, help="Only run training, skip validation.")
     parser.add_argument("--attention_pooling", action="store_true", default=False, help="Use attention pooling instead of mean pooling.")
+    parser.add_argument("--prompt_tuning", action="store_true", default=False, help="Enable prompt tuning.")
 
     args = parser.parse_args()
     debug = args.debug
     only_train = args.only_train
     attention_pooling = args.attention_pooling
+    prompt_tuning = args.prompt_tuning
 
     with open("config.yaml", "r") as f:
         config = yaml.safe_load(f)
