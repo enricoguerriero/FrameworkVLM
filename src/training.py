@@ -9,8 +9,8 @@ from torch.utils.data import DataLoader
 from torch.amp import GradScaler, autocast
 from torch.nn.utils import clip_grad_norm_
 
-from .utils import load_model, collate_fn, compute_metrics
-from .clip_dataset import ClipDataset
+from src.utils import load_model, collate_fn, compute_metrics
+from src.data import ClipDataset, RealClipDataset
 
 def main():
 
@@ -19,13 +19,13 @@ def main():
     parser.add_argument("--debug", action="store_true", default=False, help="Enable debug mode.")
     parser.add_argument("--only_train", action="store_true", default=False, help="Only run training, skip validation.")
     parser.add_argument("--attention_pooling", action="store_true", default=False, help="Use attention pooling instead of mean pooling.")
-    parser.add_argument("--prompt_tuning", action="store_true", default=False, help="Enable prompt tuning.")
+    parser.add_argument("--real_data", action="store_true", default=False, help="Use Real-CLIP dataset.")
 
     args = parser.parse_args()
     debug = args.debug
     only_train = args.only_train
     attention_pooling = args.attention_pooling
-    prompt_tuning = args.prompt_tuning
+    real_data = args.real_data
 
     with open("config.yaml", "r") as f:
         config = yaml.safe_load(f)
@@ -73,18 +73,34 @@ def main():
         }
     ]
 
-    train_dataset = ClipDataset(
-        video_csv = config.get("train_data", "train_data.csv"),
-        prompt_template = prompt_template,
-        processor = model.processor,
-        num_frames = config.get("num_frames", None)
-    )
-    val_dataset = ClipDataset(
-        video_csv = config.get("validation_data", "val_data.csv"),
-        prompt_template = prompt_template,
-        processor = model.processor,
-        num_frames = config.get("num_frames", None)
-    )
+    if real_data:
+        logger.info("Using Real-CLIP dataset.")
+        train_dataset = RealClipDataset(
+            video_csv = config.get("train_data", "train_data.csv"),
+            prompt_template = prompt_template,
+            processor = model.processor,
+            num_frames = config.get("num_frames", None)
+        )
+        val_dataset = RealClipDataset(
+            video_csv = config.get("validation_data", "val_data.csv"),
+            prompt_template = prompt_template,
+            processor = model.processor,
+            num_frames = config.get("num_frames", None)
+        )
+    else:
+        logger.info("Using CLIP dataset.")
+        train_dataset = ClipDataset(
+            video_csv = config.get("train_data", "train_data.csv"),
+            prompt_template = prompt_template,
+            processor = model.processor,
+            num_frames = config.get("num_frames", None)
+        )
+        val_dataset = ClipDataset(
+            video_csv = config.get("validation_data", "val_data.csv"),
+            prompt_template = prompt_template,
+            processor = model.processor,
+            num_frames = config.get("num_frames", None)
+        )
 
     if only_train:
         logger.info("Only training mode enabled; skipping validation.")

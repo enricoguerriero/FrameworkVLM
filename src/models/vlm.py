@@ -22,14 +22,12 @@ class VisionLanguageModel(nn.Module):
         self.attn_pool = None
         self.input_device = None
 
-    def pooling(self, x, input_ids):
+    def pooling(self, x, mask):
         
         if self.attn_pool is not None:
-            padding_mask = (input_ids != self.backbone.config.pad_token_id).to(x.device)
+            padding_mask = (mask != self.backbone.config.pad_token_id)
             return self.attn_pool(x, padding_mask)
         
-        video_token_id = self.backbone.config.video_token_id
-        mask = (input_ids == video_token_id).to(x.device)
         pooled = (x * mask.unsqueeze(-1)).sum(1) / \
                 mask.sum(1, keepdim=True).clamp(min=1)
         return pooled
@@ -46,7 +44,11 @@ class VisionLanguageModel(nn.Module):
 
         h = outputs.hidden_states[-1]
         
-        pooled = self.pooling(h, input_ids)
+        if self.attn_pool:
+            mask = attention_mask.bool().to(self.input_device)
+        else:
+            mask = (input_ids == self.backbone.config.video_token_index).to(self.input_device)
+        pooled = self.pooling(h, mask)
                
         logits = self.classifier(pooled.float())
 

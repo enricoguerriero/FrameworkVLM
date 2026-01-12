@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from torch.amp import autocast
 
 from .utils import load_model, collate_fn, compute_metrics
-from .clip_dataset import ClipDataset
+from src.data import ClipDataset
 
 def main():
 

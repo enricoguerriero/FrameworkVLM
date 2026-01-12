@@ -37,12 +37,3 @@ train_backbone: true
 validation_step: 2000
 checkpoint_path: checkpoints/
 save_path: models/
-
-# Linear probing + Fine-tuning specific configs
-classifier_learning_rate: 0.001
-classifier_epochs: 50
-classifier_batch_size: 256
-fine_tuning_learning_rate: 0.000001
-fine_tuning_epochs: 2
-fine_tuning_batch_size: 1
-
