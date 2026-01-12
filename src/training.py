@@ -46,8 +46,9 @@ def main():
 
     model = load_model(args.model, **config.get("model_params", {}))
     logger.debug(f"Model architecture: {model}")
+    logger.debug(f"Device map: {model.backbone.hf_device_map}")
     device = torch.device(config.get("device", "cuda" if torch.cuda.is_available() else "cpu"))
-    model = model.to(device)
+    # model = model.to(device)
 
     wandb.init(project="vlm-training", 
                name=f"Training_{model.model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}", 
@@ -149,6 +150,7 @@ def main():
         classifier_config = config.get("classifier_config", {}),
         bias = bias
     )
+    model.classifier.to(model.input_device)
     logger.debug(f"Classifier architecture: {model.classifier}")\
     
     if config.get("attention_pooling", False):
@@ -160,7 +162,7 @@ def main():
             lora_config = config.get("lora_config", {})
         )
         logger.debug("LoRA layers injected.")
-        logger.debug(f"Full model architecture after LoRA injection: {model}")
+        # logger.debug(f"Full model architecture after LoRA injection: {model}")
 
     for param in model.parameters():
         param.requires_grad = False
@@ -178,8 +180,8 @@ def main():
     all_params = sum(p.numel() for p in model.parameters())
     logger.info(f"Total parameters in model: {all_params}")
 
-    model.to(device)
-    logger.debug("Model moved to device.")
+    # model.to(device)
+    # logger.debug("Model moved to device.")
 
     optimizer = torch.optim.AdamW(
         filter(lambda p: p.requires_grad, model.parameters()),
@@ -187,7 +189,7 @@ def main():
         weight_decay = config.get("weight_decay", 0.001)
     )
     logger.debug("Optimizer initialized.")
-    criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weights.to(device))
+    criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weights.to(model.input_device))
     logger.debug("Loss function initialized.")
 
     N = len(train_dataset)
@@ -308,7 +310,7 @@ def main():
             with torch.no_grad(), autocast(device_type="cuda", dtype=amp_dtype):
                 for batch in tqdm(val_loader, desc=f"Epoch {epoch+1} Full Validation", total=N_val/config.get("batch_size", 4)):
 
-                    labels = batch.pop("labels").to(device)
+                    labels = batch.pop("labels").to(target_device)
                     logits = model(**batch)
                     loss = criterion(logits, labels)
 

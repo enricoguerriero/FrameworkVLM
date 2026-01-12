@@ -8,7 +8,15 @@ class LLaVANeXT(VisionLanguageModel):
         super().__init__(num_classes=num_classes, backbone_id=backbone_id, device=device)
 
         self.model_name = "LLaVANeXT"
-        self.backbone = LlavaNextVideoForConditionalGeneration.from_pretrained(backbone_id)
+        max_memory_mapping = {
+            0: "22GiB",
+            1: "28GiB",
+            2: "0GiB",
+            3: "0GiB",
+            "cpu": "100GiB",
+        }
+        self.backbone = LlavaNextVideoForConditionalGeneration.from_pretrained(backbone_id, device_map = "auto", max_memory = max_memory_mapping, torch_dtype=torch.float16)
+        self.backbone.gradient_checkpointing_enable()
         self.processor = AutoProcessor.from_pretrained(backbone_id, use_fast=True)
         self.processor.tokenizer.padding_side = "left" # Recommended from LLaVA NeXT documentation
         self.hidden_size = self.backbone.config.text_config.hidden_size
