@@ -17,7 +17,7 @@ class RealClipDataset(ClipDataset):
         return torch.tensor(arr, dtype=torch.float32)
     
     @staticmethod
-    def _get_label_counts(cls, df):
+    def _get_label_counts(df):
         n = len(df)
         codes = df['Stimulation_Suction_Ventilations'].astype(str).str.zfill(3)
         vent_count = codes.str[2].astype(int).sum()

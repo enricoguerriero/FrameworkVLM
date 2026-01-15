@@ -20,16 +20,6 @@ class Qwen3VL(VisionLanguageModel):
             self.input_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.video_tokens_allowed = True
     
-    def pooling(self, x, attention_mask):
-        
-        if self.attn_pool is not None:
-            return self.attn_pool(x, attention_mask)
-        
-        # video_token_id = self.backbone.config.video_token_id
-        # mask = (input_ids == video_token_id).to(x.device)
-        # pooled = (x * mask.unsqueeze(-1)).sum(1) / \
-        #         mask.sum(1, keepdim=True).clamp(min=1)
-        # return pooled # TO FIX LATER
 
     def forward(self, pixel_values_videos: torch.Tensor, video_grid_thw: torch.Tensor, input_ids: torch.Tensor, attention_mask: torch.Tensor):
 
@@ -43,12 +33,16 @@ class Qwen3VL(VisionLanguageModel):
         )
 
         h = outputs.hidden_states[-1]
-        try:
-            norm_layer = self.backbone.model.language_model.norm # if lora applied to language model / no lora
-        except:
-            norm_layer = self.backbone.model.model.language_model.norm # if lora applied to the whole model
-        h_norm = norm_layer(h)
-        pooled = self.pooling(h_norm, attention_mask.bool().to(self.input_device))
+        # try:
+        #     norm_layer = self.backbone.model.language_model.norm # if lora applied to language model / no lora
+        # except:
+        #     norm_layer = self.backbone.model.model.language_model.norm # if lora applied to the whole model
+        # h_norm = norm_layer(h)
+        if self.attn_pool:
+            mask = attention_mask.bool().to(self.input_device)
+        else:
+            mask = (input_ids == self.backbone.config.video_token_index).to(self.input_device)
+        pooled = self.pooling(h, mask)
                
         logits = self.classifier(pooled.float())
 
