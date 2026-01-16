@@ -290,7 +290,7 @@ def main():
     device = torch.device(config.get("device", "cuda" if torch.cuda.is_available() else "cpu"))
     logger.info(f"Using device: {device}")
 
-    study_group_name = f"HPOptim_{model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    study_group_name = f"HPOptim_{model_name}"
     study_name = args.study_name or study_group_name
     logger.info(f"Study name: {study_name}")
 
