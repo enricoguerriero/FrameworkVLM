@@ -14,6 +14,5 @@ source activate NewbornEnv || conda activate NewbornEnv
 echo "virtual environment activated"
 
 export PYTHONPATH=.
-python -m src.hyperparam_optim.py --model Qwen3VL --storage sqlite:///optuna_hpo.db 
-
+python -m src.hyperparam_optim --model Qwen3VL
 echo "--- THE END ---"

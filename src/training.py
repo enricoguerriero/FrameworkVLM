@@ -34,12 +34,12 @@ def main():
 
     if debug:
         logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
-        logging.getLogger("httpx").setLevel(logging.WARNING)
-        logging.getLogger("httpcore").setLevel(logging.WARNING)
-        logging.getLogger("urllib3").setLevel(logging.WARNING)
     else:
         logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
-
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    
     logger = logging.getLogger(__name__)
     logger.info(f"Starting training with model {args.model}")
     logger.debug(f"Configuration: {config}")

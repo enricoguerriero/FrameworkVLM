@@ -10,6 +10,7 @@ from torch.amp import GradScaler, autocast
 from torch.nn.utils import clip_grad_norm_
 import optuna
 from optuna.integration import WeightsAndBiasesCallback
+from optuna.storages import JournalStorage, JournalFileStorage
 import gc
 
 from src.utils import load_model, collate_fn, compute_metrics
@@ -277,12 +278,11 @@ def main():
 
     if debug:
         logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
-        logging.getLogger("httpx").setLevel(logging.WARNING)
-        logging.getLogger("httpcore").setLevel(logging.WARNING)
-        logging.getLogger("urllib3").setLevel(logging.WARNING)
     else:
         logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
-
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
     logger = logging.getLogger(__name__)
     logger.info(f"Starting hyperparameter optimization with model {model_name}")
     logger.debug(f"Configuration: {config}")
@@ -354,7 +354,8 @@ def main():
     )
 
     # Create Optuna study
-    storage = args.storage
+    file_path = args.storage if args.storage is not None else f"optuna_studies/{study_name}.log"
+    storage = JournalStorage(JournalFileStorage(file_path))
     sampler = optuna.samplers.TPESampler(seed=42)
     pruner = optuna.pruners.MedianPruner(n_startup_trials=3, n_warmup_steps=0)
     
