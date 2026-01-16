@@ -41,7 +41,7 @@ class Qwen3VL(VisionLanguageModel):
         if self.attn_pool:
             mask = attention_mask.bool().to(self.input_device)
         else:
-            mask = (input_ids == self.backbone.config.video_token_index).to(self.input_device)
+            mask = (input_ids == self.backbone.config.video_token_id).to(self.input_device)
         pooled = self.pooling(h, mask)
                
         logits = self.classifier(pooled.float())
