@@ -25,8 +25,8 @@ class VisionLanguageModel(nn.Module):
     def pooling(self, x, mask):
         
         if self.attn_pool is not None:
-            padding_mask = (mask != self.backbone.config.pad_token_id)
-            return self.attn_pool(x, padding_mask)
+            # padding_mask = (mask != self.backbone.config.pad_token_id)
+            return self.attn_pool(x, mask)
         
         pooled = (x * mask.unsqueeze(-1)).sum(1) / \
                 mask.sum(1, keepdim=True).clamp(min=1)
