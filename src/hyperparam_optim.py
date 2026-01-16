@@ -354,7 +354,7 @@ def main():
     )
 
     # Create Optuna study
-    file_path = args.storage if args.storage is not None else f"optuna_studies/{study_name}.log"
+    file_path = f"optuna_studies/{args.storage}" if args.storage is not None else f"optuna_studies/{study_name}.log"
     storage = JournalStorage(JournalFileBackend(file_path))
     sampler = optuna.samplers.TPESampler(seed=42)
     pruner = optuna.pruners.MedianPruner(n_startup_trials=3, n_warmup_steps=0)
