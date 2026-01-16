@@ -27,7 +27,7 @@ def main():
     attention_pooling = args.attention_pooling
     real_data = args.real_data
 
-    with open("config.yaml", "r") as f:
+    with open("configs/config.yaml", "r") as f:
         config = yaml.safe_load(f)
     if attention_pooling:
         config["attention_pooling"] = True
@@ -279,7 +279,7 @@ def main():
                     "model_state_dict": model.state_dict(),
                     "backbone": model.backbone.state_dict(),
                     "classifier": model.classifier.state_dict(),
-                    "attention_pooling": model.attn_pool.state_dict() if hasattr(model, "attn_pool") else None,
+                    "attention_pooling": model.attn_pool.state_dict() if model.attn_pool is not None else None,
                     "processor": model.processor,
                     "optimizer_state_dict": optimizer.state_dict(),
                     "epoch": epoch + 1,
@@ -338,7 +338,7 @@ def main():
             "model_state_dict": model.state_dict(),
             "backbone": model.backbone.state_dict(),
             "classifier": model.classifier.state_dict(),
-            "attention_pooling": model.attn_pool.state_dict() if hasattr(model, "attn_pool") else None,
+            "attention_pooling": model.attn_pool.state_dict() if model.attn_pool is not None else None,
             "processor": model.processor,
             "optimizer_state_dict": optimizer.state_dict(),
             "epoch": epoch + 1,
@@ -357,7 +357,7 @@ def main():
     torch.save({
         "backbone": model.backbone.state_dict(),
         "classifier": model.classifier.state_dict(),
-        "attention_pooling": model.attn_pool.state_dict() if hasattr(model, "attn_pool") else None,
+        "attention_pooling": model.attn_pool.state_dict() if model.attn_pool is not None else None,
         "processor": model.processor,
         "config": config
     }, save_path)
