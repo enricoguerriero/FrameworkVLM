@@ -10,7 +10,8 @@ from torch.amp import GradScaler, autocast
 from torch.nn.utils import clip_grad_norm_
 import optuna
 from optuna.integration import WeightsAndBiasesCallback
-from optuna.storages import JournalStorage, JournalFileStorage
+from optuna.storages import JournalStorage
+from optuna.storages.journal import JournalFileBackend
 import gc
 
 from src.utils import load_model, collate_fn, compute_metrics
@@ -144,7 +145,6 @@ def create_objective(model_name: str, config: dict, device: torch.device,
             
             criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weights.to(device))
             
-            # Create data loaders
             train_loader = DataLoader(
                 train_dataset,
                 batch_size=config.get("batch_size", 4),
@@ -355,7 +355,7 @@ def main():
 
     # Create Optuna study
     file_path = args.storage if args.storage is not None else f"optuna_studies/{study_name}.log"
-    storage = JournalStorage(JournalFileStorage(file_path))
+    storage = JournalStorage(JournalFileBackend(file_path))
     sampler = optuna.samplers.TPESampler(seed=42)
     pruner = optuna.pruners.MedianPruner(n_startup_trials=3, n_warmup_steps=0)
     
