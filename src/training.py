@@ -181,11 +181,24 @@ def main():
     model.to(device)
     logger.debug("Model moved to device.")
 
-    optimizer = torch.optim.AdamW(
-        filter(lambda p: p.requires_grad, model.parameters()),
-        lr = config.get("learning_rate", 1e-5),
-        weight_decay = config.get("weight_decay", 0.001)
-    )
+    if config.get("learning_rate", None) is None:
+        optimizer = torch.optim.AdamW(
+            filter(lambda p: p.requires_grad, model.parameters()),
+            lr = config.get("learning_rate", 1e-5),
+            weight_decay = config.get("weight_decay", 0.001)
+        )
+    else:
+        lora_params = [p for n, p in model.backbone.named_parameters() if "lora_" in n and p.requires_grad]
+        classifier_params = list(model.classifier.parameters())
+        if config.get("attention_pooling", False):
+            classifier_params += list(model.attn_pool.parameters())
+        optimizer = torch.optim.AdamW(
+            [
+                {"params": lora_params, "lr": config.get("lora_lr", 2e-5)},
+                {"params": classifier_params, "lr": config.get("classifier_lr", 5e-5)}
+            ],
+            weight_decay = config.get("weight_decay", 0.0001)
+        )
     logger.debug("Optimizer initialized.")
     criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weights.to(device))
     logger.debug("Loss function initialized.")

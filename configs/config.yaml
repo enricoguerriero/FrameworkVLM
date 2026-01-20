@@ -12,26 +12,30 @@ validation_data: data/validation.csv
 test_data: data/test.csv
 
 lora_config:
-  lora_r: 16
-  lora_alpha: 32
+  lora_r: 32
+  lora_alpha: 16
   lora_dropout: 0.1
   target_modules:
     - "q_proj"
     - "v_proj"
+    - up_proj"
+    - "down_proj"
   bias: lora_only
   modality: total
 
 classifier_config:
-  dims: [256]
-  activation: relu
+  dims: []
+  activation: gelu
   use_bias: true
-  classifier_dropout: 0.1
+  classifier_dropout: 0.37
 
 num_frames: null
 batch_size: 1
 num_workers: 4
-num_epochs: 2
-learning_rate: 0.00001
+num_epochs: 3
+learning_rate: null
+lora_lr: 0.00002
+classifier_lr: 0.00005
 weight_decay: 0.0001
 train_backbone: true
 validation_step: 2000
