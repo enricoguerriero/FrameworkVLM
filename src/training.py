@@ -181,7 +181,7 @@ def main():
     model.to(device)
     logger.debug("Model moved to device.")
 
-    if config.get("learning_rate", None) is None:
+    if config.get("learning_rate", None) is not None:
         optimizer = torch.optim.AdamW(
             filter(lambda p: p.requires_grad, model.parameters()),
             lr = config.get("learning_rate", 1e-5),
